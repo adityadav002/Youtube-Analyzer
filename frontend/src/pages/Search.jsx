@@ -26,6 +26,7 @@ import { searchYoutube, searchInternal, getSearchHistory } from '../api/search';
 import { importVideo } from '../api/videos';
 import { getChannels } from '../api/channels';
 import { formatDuration, formatNumber, formatRelativeTime } from '../utils/formatters';
+import { API_BASE_URL } from '../constants';
 
 export default function Search() {
   const navigate = useNavigate();
@@ -802,8 +803,9 @@ export default function Search() {
               {modeParam === 'library' && typeParam === 'video' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {resultsList.map((video) => {
+                    const BACKEND_BASE_URL = API_BASE_URL.replace(/\/api\/?$/, '');
                     const fallbackThumb = video.thumbnail_url?.startsWith('/') 
-                      ? `http://localhost:5000${video.thumbnail_url}` 
+                      ? `${BACKEND_BASE_URL}${video.thumbnail_url}` 
                       : video.thumbnail_url || `https://i.ytimg.com/vi/${video.id}/hqdefault.jpg`;
                     return (
                       <div 
@@ -896,8 +898,9 @@ export default function Search() {
               {modeParam === 'library' && typeParam === 'transcript' && (
                 <div className="space-y-4">
                   {resultsList.map((res, idx) => {
+                    const BACKEND_BASE_URL = API_BASE_URL.replace(/\/api\/?$/, '');
                     const fallbackThumb = res.thumbnail_url?.startsWith('/') 
-                      ? `http://localhost:5000${res.thumbnail_url}` 
+                      ? `${BACKEND_BASE_URL}${res.thumbnail_url}` 
                       : res.thumbnail_url || `https://i.ytimg.com/vi/${res.video_id}/hqdefault.jpg`;
                     return (
                       <div 

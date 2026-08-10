@@ -15,21 +15,29 @@ class Config:
     
     mysql_password = quote_plus(os.environ.get("MYSQL_PASSWORD", ""))
 
-    SQLALCHEMY_DATABASE_URI = (
-        f"mysql+pymysql://{mysql_user}:{mysql_password}@{mysql_host}:{mysql_port}/{mysql_db}"
-    )
+    db_url = os.environ.get('DATABASE_URL')
+    if db_url:
+        if db_url.startswith("postgres://"):
+            db_url = db_url.replace("postgres://", "postgresql://", 1)
+        SQLALCHEMY_DATABASE_URI = db_url
+    else:
+        SQLALCHEMY_DATABASE_URI = (
+            f"mysql+pymysql://{mysql_user}:{mysql_password}@{mysql_host}:{mysql_port}/{mysql_db}"
+        )
     
     # Connection Configuration (from Blueprint)
     SQLALCHEMY_ENGINE_OPTIONS = {
         "pool_pre_ping": True,
         "pool_recycle": 3600,
         "pool_size": 10,
-        "max_overflow": 5,
-        "connect_args": {
+        "max_overflow": 5
+    }
+    
+    if SQLALCHEMY_DATABASE_URI.startswith("mysql"):
+        SQLALCHEMY_ENGINE_OPTIONS["connect_args"] = {
             "charset": "utf8mb4",
             "connect_timeout": 10
         }
-    }
     
     USE_CELERY = os.environ.get('USE_CELERY', 'true').lower() == 'true'
     

@@ -92,3 +92,46 @@ youtube_analyzer/
   ```powershell
   Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force
   ```
+
+## Production Deployment on Render
+
+This project is configured for easy deployment on [Render](https://render.com) using the root-level `render.yaml` Blueprint specification.
+
+### Architecture
+- **Backend Web Service**: Flask application run with Gunicorn production WSGI server.
+- **Frontend Static Site**: React application built with Vite and TailwindCSS, served as static files.
+
+### Render Blueprint Services Setup
+
+You can deploy the entire stack to Render by importing this repository and using the `render.yaml` file:
+
+1. **Backend Web Service**:
+   - **Environment**: `Python`
+   - **Root Directory**: `backend`
+   - **Build Command**: `chmod +x build.sh && ./build.sh` (Downloads Python dependencies and installs a Linux-compatible static build of **FFmpeg**).
+   - **Start Command**: `gunicorn --bind 0.0.0.0:$PORT wsgi:app`
+   - **Health Check Endpoint**: `/api/health`
+
+2. **Frontend Static Site**:
+   - **Environment**: `Static`
+   - **Root Directory**: `frontend`
+   - **Build Command**: `npm install && npm run build`
+   - **Publish Directory**: `dist`
+
+### Required Environment Variables
+
+#### Backend Service:
+- `FLASK_ENV`: Set to `production`.
+- `SECRET_KEY`: A secure random secret key.
+- `DATABASE_URL`: Your production database URL (supports MySQL/PostgreSQL, e.g. `mysql+pymysql://user:pass@host:3306/db` or `postgresql://user:pass@host:5432/db`).
+- `CORS_ORIGINS`: Set to your deployed frontend URL (e.g. `https://youtube-analyzer.onrender.com`).
+- `USE_CELERY`: Set to `false` to process video/channel crawl tasks on-demand via lightweight background threads.
+
+#### Frontend Service:
+- `VITE_API_BASE_URL`: Set to your deployed backend API root (e.g. `https://youtube-analyzer-backend.onrender.com/api`).
+
+### Known Deployment Limitations
+
+1. **Ephemeral File Storage**: Render's Web Services have ephemeral filesystems. Downloader assets (video/audio/thumbnails) stored in `downloads/` or `thumbnails/` will be removed when the service redeploys or restarts. To retain files across restarts, you should configure a **Render Persistent Disk** mounted at `/opt/render/project/src/backend/downloads` (size e.g. 10GB) or integrate an external cloud storage provider.
+2. **In-Memory Rate Limiting**: The application uses Flask-Limiter's in-memory rate-limiter. For clustered multi-instance deployments, a shared Redis server should be configured as the storage backend for Flask-Limiter.
+

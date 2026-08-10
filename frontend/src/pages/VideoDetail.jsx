@@ -5,6 +5,7 @@ import { ArrowLeft, Eye, Clock, Calendar, ThumbsUp, MessageSquare, Loader2, Play
 import { getVideo } from '../api/videos';
 import { startDownload } from '../api/downloads';
 import { formatNumber, formatDuration, formatDate } from '../utils/formatters';
+import { API_BASE_URL } from '../constants';
 
 export default function VideoDetail() {
   const { id } = useParams();
@@ -52,8 +53,9 @@ export default function VideoDetail() {
     });
   };
 
+  const BACKEND_BASE_URL = API_BASE_URL.replace(/\/api\/?$/, '');
   const thumbnail = video.thumbnail_url?.startsWith('/') 
-    ? `http://localhost:5000${video.thumbnail_url}` 
+    ? `${BACKEND_BASE_URL}${video.thumbnail_url}` 
     : video.thumbnail_url || `https://i.ytimg.com/vi/${video.id}/hqdefault.jpg`;
 
   return (

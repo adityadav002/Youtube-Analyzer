@@ -14,3 +14,6 @@ feedparser==6.0.11
 python-dotenv==1.0.1
 pytest==8.2.2
 requests==2.32.3
+gunicorn==22.0.0
+psycopg2-binary==2.9.9
+

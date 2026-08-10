@@ -1,0 +1,29 @@
+services:
+  # Backend Web Service
+  - type: web
+    name: youtube-analyzer-backend
+    env: python
+    rootDir: backend
+    buildCommand: chmod +x build.sh && ./build.sh
+    startCommand: gunicorn --bind 0.0.0.0:$PORT wsgi:app
+    healthCheckPath: /api/health
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: USE_CELERY
+        value: "false"
+      - key: CORS_ORIGINS
+        value: "*" # Recommended: Update this to your frontend URL after deploying
+
+  # Frontend Static Site
+  - type: web
+    name: youtube-analyzer-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: "" # Recommended: Update this to your backend service URL (e.g. https://youtube-analyzer-backend.onrender.com/api)

@@ -82,6 +82,12 @@ def create_app(config_name=None):
 
     register_request_logger(app)
     
+    # Serve thumbnails statically in production/local dev without Nginx
+    @app.route('/thumbnails/<path:filename>')
+    def serve_thumbnail(filename):
+        from flask import send_from_directory
+        return send_from_directory(app.config['THUMBNAIL_DIR'], filename)
+
     # Register basic health endpoint
     @app.route('/api/health')
     def health_check():

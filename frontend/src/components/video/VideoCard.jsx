@@ -2,10 +2,13 @@ import { Link } from 'react-router-dom';
 import { formatDuration, formatRelativeTime, formatNumber } from '../../utils/formatters';
 import { Clock, PlayCircle, Loader2 } from 'lucide-react';
 
+import { API_BASE_URL } from '../../constants';
+
 export default function VideoCard({ video }) {
   // Use a fallback thumbnail from YouTube if we haven't downloaded it, or if it's a stub
+  const BACKEND_BASE_URL = API_BASE_URL.replace(/\/api\/?$/, '');
   const thumbnail = video.thumbnail_url?.startsWith('/') 
-    ? `http://localhost:5000${video.thumbnail_url}` 
+    ? `${BACKEND_BASE_URL}${video.thumbnail_url}` 
     : video.thumbnail_url || `https://i.ytimg.com/vi/${video.id}/hqdefault.jpg`;
 
   return (
