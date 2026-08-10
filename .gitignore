@@ -1,0 +1,77 @@
+# ==========================================
+# YouTube Video Analyzer - Git Ignore Config
+# ==========================================
+
+# --- Environment / Secrets ---
+.env
+.env.*
+!.env.example
+
+# --- Python / Flask (Backend) ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+ENV/
+env/
+.pytest_cache/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
+backend/.env
+backend/instance/
+
+# --- Node / React / Vite (Frontend) ---
+frontend/node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+.eslintcache
+
+# --- Project-Specific Downloads & Media ---
+# Ignore downloaded videos, audios, and extracted thumbnails
+downloads/
+thumbnails/
+backend/downloads/
+backend/thumbnails/
+*.mp4
+*.mp3
+*.m4a
+*.wav
+*.srt
+*.vtt
+
+# --- Databases ---
+# Ignore local SQLite test/development databases
+*.db
+*.sqlite
+*.sqlite3
+
+# --- IDEs / Editors ---
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.swo
+
+# --- OS Specific ---
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+
+# Celery runtime state
+backend/celerybeat-schedule
