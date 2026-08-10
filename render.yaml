@@ -15,7 +15,17 @@ services:
       - key: USE_CELERY
         value: "false"
       - key: CORS_ORIGINS
-        value: "*" # Recommended: Update this to your frontend URL after deploying
+        sync: false # Prompt user to input frontend URL (e.g. https://youtube-analyzer-frontend.onrender.com)
+      
+      # Database connection (Option A: Render PostgreSQL)
+      - key: DATABASE_URL
+        fromDatabase:
+          name: youtube-analyzer-db
+          property: connectionString
+
+      # Option B: External MySQL (Uncomment this and comment out Option A above)
+      # - key: DATABASE_URL
+      #   sync: false
 
   # Frontend Static Site
   - type: web
@@ -26,4 +36,10 @@ services:
     staticPublishPath: dist
     envVars:
       - key: VITE_API_BASE_URL
-        value: "" # Recommended: Update this to your backend service URL (e.g. https://youtube-analyzer-backend.onrender.com/api)
+        sync: false # Prompt user to input backend URL (e.g. https://youtube-analyzer-backend.onrender.com/api)
+
+databases:
+  - name: youtube-analyzer-db
+    databaseName: youtube_analyzer
+    user: db_user
+    plan: free
