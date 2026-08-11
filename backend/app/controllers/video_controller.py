@@ -105,3 +105,8 @@ def delete_video(video_id):
     if success:
         return '', 204
     return jsonify({'error': 'Video not found'}), 404
+
+@video_bp.route('/<video_id>/download', methods=['GET'])
+def download_video(video_id):
+    from app.controllers.download_controller import handle_direct_download
+    return handle_direct_download(video_id)

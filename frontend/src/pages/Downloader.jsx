@@ -205,12 +205,30 @@ export default function Downloader() {
       payloadFormat = 'jpg';
     }
 
-    startDownloadMutation.mutate({
-      url: trimmed,
-      download_type: downloadType,
-      quality: payloadQuality,
-      format: payloadFormat
+    const downloadUrl = `${API_BASE_URL}/videos/${videoId}/download?quality=${payloadQuality}&format=${payloadFormat}&download_type=${downloadType}`;
+    
+    setNotification({
+      type: 'success',
+      message: 'Download started! Your browser will download the file directly.'
     });
+    setTimeout(() => setNotification(null), 6000);
+    
+    // Use a hidden anchor tag to trigger native browser download.
+    // Unlike an iframe with a 15s timeout, this keeps the connection alive
+    // for the entire duration of the download, supporting files of any size.
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    
+    setUrl('');
+    setVideoPreview(null);
+    
+    setTimeout(() => {
+      queryClient.invalidateQueries({ queryKey: ['downloads'] });
+    }, 1200);
   };
 
   const handleViewInHistory = (historyId) => {
@@ -511,11 +529,10 @@ export default function Downloader() {
           <div className="flex justify-end">
             <button
               type="submit"
-              disabled={startDownloadMutation.isPending}
-              className="w-full sm:w-auto px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-base font-semibold transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center"
+              className="w-full sm:w-auto px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-base font-semibold transition-colors shadow-sm flex items-center justify-center"
             >
-              {startDownloadMutation.isPending && <Loader2 className="w-5 h-5 mr-2 animate-spin" />}
-              Queue Download
+              <Download className="w-5 h-5 mr-2" />
+              Download
             </button>
           </div>
         </form>
@@ -743,7 +760,18 @@ export default function Downloader() {
 
                       {(item.status === 'failed' || item.status === 'cancelled') && (
                         <button
-                          onClick={() => retryDownloadMutation.mutate(item.id)}
+                          onClick={() => {
+                            const retryUrl = `${API_BASE_URL}/videos/${item.video_id}/download?quality=${item.quality}&format=${item.format}&download_type=${item.download_type}`;
+                            const a = document.createElement('a');
+                            a.href = retryUrl;
+                            a.style.display = 'none';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            setTimeout(() => {
+                              queryClient.invalidateQueries({ queryKey: ['downloads'] });
+                            }, 1200);
+                          }}
                           title="Retry download"
                           className="inline-flex p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 hover:text-indigo-600 transition-all shadow-sm"
                         >

@@ -677,4 +677,295 @@ def delete_download(download_id):
         
     return '', 204
 
+def stream_file_generator_direct(file_path):
+    try:
+        with open(file_path, 'rb') as f:
+            while True:
+                chunk = f.read(128 * 1024)
+                if not chunk:
+                    break
+                yield chunk
+    finally:
+        # Always clean up the temporary file immediately after response completes or fails
+        if file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                logger.info(f"Successfully cleaned up temporary direct download file: {file_path}")
+            except Exception as e:
+                logger.warning(f"Failed to remove temporary direct download file {file_path}: {e}")
+
+def handle_direct_download(video_id):
+    import uuid
+    import tempfile
+    import shutil
+    import yt_dlp
+    from datetime import datetime, timezone
+    from flask import request, current_app, Response, stream_with_context, jsonify
+    from yt_dlp.utils import sanitize_filename
+    
+    from app import db
+    from app.models.history import DownloadHistory
+    from app.models.video import Video
+    from app.models.settings import UserSettings
+    from app.jobs.video_jobs import parse_rate_limit
+    
+    download_type = request.args.get('download_type', 'video')
+    quality = request.args.get('quality', 'best')
+    format_option = request.args.get('format', 'mp4')
+    
+    logger.info(f"[DirectDownload] video_id={video_id}")
+    logger.info(f"[DirectDownload] quality={quality}")
+    logger.info(f"[DirectDownload] format={format_option}")
+    logger.info(f"[DirectDownload] type={download_type}")
+    
+    # 1. Resolve video details
+    video = resolve_video(video_id)
+    if not video:
+        return jsonify({
+            'success': False,
+            'message': f"Failed to resolve video '{video_id}'. Please make sure it is a valid, public YouTube video."
+        }), 404
+        
+    title = video.title
+    safe_title = sanitize_filename(title)
+    
+    ext = format_option
+    if download_type == 'audio':
+        ext = format_option if format_option in ['mp3', 'm4a', 'wav'] else 'mp3'
+    else:
+        ext = 'mp4'
+        
+    filename_header = f"{safe_title}.{ext}"
+    
+    # 2. Insert metadata record in DownloadHistory
+    history = DownloadHistory(
+        video_id=video_id,
+        download_type=download_type,
+        quality=quality,
+        status='downloading',
+        progress_percent=0
+    )
+    db.session.add(history)
+    db.session.commit()
+    
+    # 3. Retrieve User Settings
+    settings = db.session.query(UserSettings).get(1)
+    proxy = settings.ytdlp_proxy if settings else None
+    cookies_file = settings.cookies_file_path if settings else None
+    client_name = settings.ytdlp_player_client if settings else 'ios'
+    rate_limit = settings.ytdlp_rate_limit if settings else None
+    
+    temp_path = None
+    downloaded_file = None
+    
+    try:
+        temp_dir = tempfile.gettempdir()
+        temp_path = os.path.join(temp_dir, f"analyzer_download_{history.id}_{uuid.uuid4().hex}")
+        outtmpl = f"{temp_path}.%(ext)s"
+        
+        ffmpeg_available = shutil.which('ffmpeg') is not None
+        
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'ignoreerrors': False,
+            'outtmpl': outtmpl,
+        }
+        
+        from app.extraction.ytdlp_client import configure_ytdlp_options
+        configure_ytdlp_options(ydl_opts, settings)
+            
+        if rate_limit:
+            parsed_limit = parse_rate_limit(rate_limit)
+            if parsed_limit:
+                ydl_opts['ratelimit'] = parsed_limit
+                
+        # Format selection
+        if download_type == 'video':
+            if quality == 'best':
+                if ffmpeg_available:
+                    ydl_opts['format'] = 'bestvideo+bestaudio/best'
+                else:
+                    ydl_opts['format'] = 'best'
+            elif quality in ['1080p', '720p', '480p']:
+                h = quality.replace('p', '')
+                if ffmpeg_available:
+                    ydl_opts['format'] = f'bestvideo[height<={h}]+bestaudio/best[height<={h}]'
+                else:
+                    ydl_opts['format'] = f'best[height<={h}]'
+            else:
+                ydl_opts['format'] = 'best'
+                
+            ydl_opts['merge_output_format'] = format_option
+            
+        elif download_type == 'audio':
+            ydl_opts['format'] = 'bestaudio/best'
+            if ffmpeg_available:
+                audio_quality_map = {
+                    '128k': '128',
+                    '192k': '192',
+                    '256k': '256',
+                    '320k': '320'
+                }
+                preferred_quality = audio_quality_map.get(quality, '192')
+                ydl_opts['postprocessors'] = [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': format_option if format_option in ['mp3', 'm4a', 'wav'] else 'mp3',
+                    'preferredquality': preferred_quality,
+                }]
+            else:
+                raise Exception("ffmpeg is required for audio extraction but was not found.")
+                
+        # Execute download synchronously to temp folder
+        url = f"https://youtube.com/watch?v={video_id}"
+        logger.info("[DirectDownload] starting yt-dlp")
+        logger.info(f"Direct stream download starting for {url} with options {ydl_opts}")
+        
+        def _run_ytdlp_download(opts):
+            """Run yt-dlp and return (info_dict, filename_from_ydl)."""
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info_dict = ydl.extract_info(url, download=True)
+                filename_from_ydl = ydl.prepare_filename(info_dict)
+            return info_dict, filename_from_ydl
+        
+        try:
+            info_dict, filename_from_ydl = _run_ytdlp_download(ydl_opts)
+        except yt_dlp.utils.DownloadError as de:
+            if "Could not copy Chrome cookie database" in str(de) or "failed to load cookies" in str(de):
+                logger.warning("[DirectDownload] Chrome cookie DB is locked (browser running). Retrying without browser cookies.")
+                ydl_opts.pop('cookiesfrombrowser', None)
+                info_dict, filename_from_ydl = _run_ytdlp_download(ydl_opts)
+            else:
+                raise
+        
+        base_name, _ = os.path.splitext(filename_from_ydl)
+        final_ext = format_option if download_type in ['video', 'audio'] else 'mp4'
+        if download_type == 'audio' and ffmpeg_available:
+            final_ext = format_option
+            
+        # Check actual file path on disk
+        downloaded_file = filename_from_ydl
+        if not os.path.exists(downloaded_file):
+            for ext_candidate in [final_ext, 'mp4', 'mkv', 'webm', 'mp3', 'm4a', 'wav']:
+                p = f"{base_name}.{ext_candidate}"
+                if os.path.exists(p):
+                    downloaded_file = p
+                    break
+                        
+        if not downloaded_file or not os.path.exists(downloaded_file) or os.path.getsize(downloaded_file) == 0:
+            raise Exception("Downloaded file not found or is empty.")
+            
+        file_size = os.path.getsize(downloaded_file)
+        
+        # Update history metadata to complete
+        history.status = 'complete'
+        history.file_size_bytes = file_size
+        db.session.commit()
+        
+        logger.info(f"[DirectDownload] file exists before response: True")
+        logger.info(f"[DirectDownload] file size: {file_size}")
+        
+        # Determine proper MIME type
+        mime_type = 'video/mp4'
+        if download_type == 'audio':
+            mime_map = {'mp3': 'audio/mpeg', 'm4a': 'audio/mp4', 'wav': 'audio/wav'}
+            mime_type = mime_map.get(ext, 'audio/mpeg')
+        
+        # Use Flask's send_file which properly streams from disk,
+        # sets Content-Length, and does NOT load the entire file into RAM.
+        response = send_file(
+            downloaded_file,
+            mimetype=mime_type,
+            as_attachment=True,
+            download_name=filename_header
+        )
+        
+        # Register cleanup to run AFTER the response has been fully sent to the browser.
+        # call_on_close fires only after WSGI finishes writing all bytes to the client.
+        temp_file_to_clean = downloaded_file
+        @response.call_on_close
+        def cleanup_temp_file():
+            if temp_file_to_clean and os.path.exists(temp_file_to_clean):
+                try:
+                    os.remove(temp_file_to_clean)
+                    logger.info(f"[DirectDownload] cleanup completed: {temp_file_to_clean}")
+                except Exception as cleanup_err:
+                    logger.warning(f"[DirectDownload] cleanup failed for {temp_file_to_clean}: {cleanup_err}")
+        
+        logger.info(f"[DirectDownload] response Content-Length: {file_size}")
+        logger.info(f"[DirectDownload] response Content-Type: {mime_type}")
+        logger.info(f"[DirectDownload] response Content-Disposition: attachment; filename=\"{filename_header}\"")
+        logger.info("[DirectDownload] returning send_file response")
+        
+        return response
+        
+    except Exception as e:
+        logger.exception(f"Direct stream download failed for {video_id}: {e}")
+        db.session.rollback()
+        
+        # Clean up temp file immediately if it exists
+        if downloaded_file and os.path.exists(downloaded_file):
+            try:
+                os.remove(downloaded_file)
+            except Exception:
+                pass
+                
+        # Clean up other potential temp files matching temp_path
+        if temp_path:
+            try:
+                for f in os.listdir(temp_dir):
+                    if f.startswith(os.path.basename(temp_path)):
+                        try:
+                            os.remove(os.path.join(temp_dir, f))
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+                
+        err_msg = str(e)
+        err_lower = err_msg.lower()
+        
+        category = "DOWNLOAD_ERROR"
+        status_code = 500
+        user_msg = f"Failed to download video: {err_msg}"
+        
+        if any(msg in err_lower for msg in ["confirm you're not a bot", "confirm you’re not a bot", "sign in to confirm", "not a bot", "login_required"]):
+            category = "YOUTUBE_AUTHENTICATION_REQUIRED"
+            status_code = 403
+            user_msg = "YouTube requires authentication for this download."
+        elif "age restricted" in err_lower or "age-restricted" in err_lower or "confirm your age" in err_lower:
+            category = "AGE_RESTRICTED"
+            status_code = 403
+            user_msg = "This video is age-restricted and requires age verification."
+        elif "private video" in err_lower:
+            category = "PRIVATE_VIDEO"
+            status_code = 403
+            user_msg = "This video is private on YouTube."
+        elif "video unavailable" in err_lower or "not available" in err_lower or "unavailable" in err_lower:
+            category = "VIDEO_UNAVAILABLE"
+            status_code = 404
+            user_msg = "This video is unavailable on YouTube."
+        elif "requested format not available" in err_lower or "no video formats" in err_lower or "format not available" in err_lower:
+            category = "FORMAT_UNAVAILABLE"
+            status_code = 400
+            user_msg = "The requested quality or format is not available for this video."
+        elif "ffmpeg" in err_lower:
+            category = "FFMPEG_ERROR"
+            status_code = 500
+            user_msg = "An error occurred in FFmpeg while merging or processing media formats."
+        elif "network" in err_lower or "connection" in err_lower or "http error" in err_lower:
+            category = "NETWORK_ERROR"
+            status_code = 502
+            user_msg = "A network error occurred while communicating with YouTube."
+            
+        history.status = 'failed'
+        history.error_message = f"{category}: {user_msg}"
+        db.session.commit()
+        
+        return jsonify({
+            'success': False,
+            'category': category,
+            'message': user_msg
+        }), status_code
+
 

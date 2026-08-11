@@ -374,22 +374,8 @@ def download_video_task(self, job_id: str, history_id: int):
             'outtmpl': outtmpl,
         }
         
-        if proxy:
-            ydl_opts['proxy'] = proxy
-        if cookies_file and os.path.exists(cookies_file):
-            ydl_opts['cookiefile'] = cookies_file
-            
-        ydl_opts['extractor_args'] = {
-            'youtube': {
-                'player_client': [client_name, 'default']
-            }
-        }
-        
-        pot_provider_url = os.environ.get('POT_PROVIDER_URL')
-        if pot_provider_url:
-            ydl_opts['extractor_args']['youtubepot-bgutilhttp'] = {
-                'base_url': [pot_provider_url]
-            }
+        from app.extraction.ytdlp_client import configure_ytdlp_options
+        configure_ytdlp_options(ydl_opts, settings)
         
         if rate_limit:
             parsed_limit = parse_rate_limit(rate_limit)
@@ -525,26 +511,42 @@ def download_video_task(self, job_id: str, history_id: int):
         
         err_msg = str(e)
         err_lower = err_msg.lower()
-        if any(msg in err_lower for msg in [
-            "confirm you're not a bot",
-            "confirm you’re not a bot",
-            "sign in to confirm",
-            "confirm your identity",
-            "not a bot"
-        ]):
-            err_msg = "YOUTUBE_BOT_CHECK: YouTube requires verification (Bot check). Please configure a PO Token Provider or server-side cookies."
-        elif download_type == 'subtitle':
-            if 'subtitle' in err_lower or 'caption' in err_lower or 'not available' in err_lower or 'no video formats' in err_lower or 'file not found' in err_lower or 'empty' in err_lower:
-                err_msg = f"No subtitles or captions are available for this video in language '{quality}'."
+        
+        category = "DOWNLOAD_ERROR"
+        user_msg = f"Failed to download video: {err_msg}"
+        
+        if any(msg in err_lower for msg in ["confirm you're not a bot", "confirm you’re not a bot", "sign in to confirm", "not a bot", "login_required"]):
+            category = "YOUTUBE_AUTHENTICATION_REQUIRED"
+            user_msg = "YouTube requires authentication for this download."
+        elif "age restricted" in err_lower or "age-restricted" in err_lower or "confirm your age" in err_lower:
+            category = "AGE_RESTRICTED"
+            user_msg = "This video is age-restricted and requires age verification."
+        elif "private video" in err_lower:
+            category = "PRIVATE_VIDEO"
+            user_msg = "This video is private on YouTube."
+        elif "video unavailable" in err_lower or "not available" in err_lower or "unavailable" in err_lower:
+            category = "VIDEO_UNAVAILABLE"
+            user_msg = "This video is unavailable on YouTube."
+        elif "requested format not available" in err_lower or "no video formats" in err_lower or "format not available" in err_lower:
+            category = "FORMAT_UNAVAILABLE"
+            user_msg = "The requested quality or format is not available for this video."
+        elif "ffmpeg" in err_lower:
+            category = "FFMPEG_ERROR"
+            user_msg = "An error occurred in FFmpeg while merging or processing media formats."
+        elif "network" in err_lower or "connection" in err_lower or "http error" in err_lower:
+            category = "NETWORK_ERROR"
+            user_msg = "A network error occurred while communicating with YouTube."
+            
+        err_msg_final = f"{category}: {user_msg}"
                 
         job = db.session.query(ProcessingQueue).get(job_id)
         history = db.session.query(DownloadHistory).get(history_id)
         if history:
             history.status = 'failed'
-            history.error_message = err_msg
+            history.error_message = err_msg_final
         if job:
             job.status = 'failed'
-            job.error_message = err_msg
+            job.error_message = err_msg_final
         db.session.commit()
 
 

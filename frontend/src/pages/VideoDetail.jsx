@@ -44,13 +44,19 @@ export default function VideoDetail() {
   }
 
   const handleDownload = () => {
-    const canonicalUrl = `https://www.youtube.com/watch?v=${video.id}`;
-    startDownloadMutation.mutate({
-      url: canonicalUrl,
-      download_type: 'video',
-      quality: 'best',
-      format: 'mp4'
-    });
+    const downloadUrl = `${API_BASE_URL}/videos/${video.id}/download?quality=best&format=mp4&download_type=video`;
+    
+    // Use a hidden anchor tag to trigger native browser download.
+    // This keeps the connection alive for the entire duration,
+    // supporting files of any size (unlike an iframe with a timeout).
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    queryClient.invalidateQueries({ queryKey: ['downloads'] });
   };
 
   const BACKEND_BASE_URL = API_BASE_URL.replace(/\/api\/?$/, '');
@@ -129,42 +135,11 @@ export default function VideoDetail() {
               )}
               <button 
                 onClick={handleDownload}
-                disabled={startDownloadMutation.isPending || startDownloadMutation.isSuccess}
-                className={`w-full lg:w-auto px-5 py-2.5 font-medium rounded-lg transition-all shadow-sm flex items-center justify-center border ${
-                  startDownloadMutation.isSuccess
-                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
-                    : startDownloadMutation.isError
-                    ? 'bg-red-600 hover:bg-red-700 text-white border-red-600'
-                    : 'bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600 disabled:opacity-50'
-                }`}
+                className="w-full lg:w-auto px-5 py-2.5 font-medium rounded-lg transition-all shadow-sm flex items-center justify-center border bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-600"
               >
-                {startDownloadMutation.isPending ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Queueing...
-                  </>
-                ) : startDownloadMutation.isSuccess ? (
-                  <>
-                    <CheckCircle className="w-4 h-4 mr-2" />
-                    Download Queued
-                  </>
-                ) : startDownloadMutation.isError ? (
-                  <>
-                    <AlertCircle className="w-4 h-4 mr-2" />
-                    Failed - Retry
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4 mr-2" />
-                    Download Video
-                  </>
-                )}
+                <Download className="w-4 h-4 mr-2" />
+                Download Video
               </button>
-              {startDownloadMutation.isError && (
-                <p className="text-xs font-semibold text-red-600 mt-1 max-w-[200px] text-center lg:text-right">
-                  {startDownloadMutation.error?.response?.data?.message || startDownloadMutation.error?.response?.data?.error || "Queue failed"}
-                </p>
-              )}
             </div>
           </div>
 

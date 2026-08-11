@@ -12,6 +12,8 @@ export default defineConfig({
       '/api': {
         target: process.env.VITE_API_URL || 'http://localhost:5000',
         changeOrigin: true,
+        timeout: 600000,      // 10 minutes — yt-dlp may take minutes for large videos
+        proxyTimeout: 600000, // 10 minutes — wait for backend to finish extraction
       }
     }
   },

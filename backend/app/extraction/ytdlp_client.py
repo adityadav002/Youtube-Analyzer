@@ -5,6 +5,93 @@ from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Disable bgutil script-based PO Token providers.
+# The bgutil package registers both an HTTP provider (uses the running server
+# on :4416) and script providers that shell out to generate_once.js.
+# On Windows the script provider's is_available() hangs for 15 seconds trying
+# to run `generate_once.js --version`, so we disable them at import time.
+# The HTTP provider alone is sufficient when the bgutil server is running.
+# ---------------------------------------------------------------------------
+try:
+    from yt_dlp_plugins.extractor.getpot_bgutil_script import (
+        BgUtilScriptNodePTP,
+        BgUtilScriptDenoPTP,
+    )
+    BgUtilScriptNodePTP.is_available = lambda self: False
+    BgUtilScriptDenoPTP.is_available = lambda self: False
+    logger.info("[YtdlpConfig] Disabled bgutil script PO token providers (using HTTP server instead)")
+except ImportError:
+    pass  # Plugin not installed, nothing to disable
+
+def configure_ytdlp_options(ydl_opts: dict, settings=None) -> dict:
+    """Centralized function to apply yt-dlp configurations, cookies, PO token provider, and runtimes."""
+    # Ensure quiet/no_warnings/ignoreerrors are respected or set defaults
+    ydl_opts.setdefault('quiet', True)
+    ydl_opts.setdefault('no_warnings', True)
+    
+    # 1. Enable Node.js EJS challenge solver
+    ydl_opts['js_runtimes'] = {'node': {}}
+    logger.info("[YtdlpConfig] js runtime = node")
+
+    # 2. Configure proxy if present
+    proxy = settings.ytdlp_proxy if settings else None
+    if proxy:
+        ydl_opts['proxy'] = proxy
+
+    # 3. Determine environment (local vs Render production)
+    is_render = os.environ.get('RENDER') == 'true'
+
+    # 4. Configure cookies
+    cookies_file = settings.cookies_file_path if settings else None
+    
+    if is_render:
+        # Render/Production: Use cookie file from environment variable if provided, or database settings
+        ytdlp_cookies_env = os.environ.get('YTDLP_COOKIES_FILE')
+        if ytdlp_cookies_env and os.path.exists(ytdlp_cookies_env):
+            ydl_opts['cookiefile'] = ytdlp_cookies_env
+            logger.info(f"[YtdlpConfig] Using Render production cookies file from env: {ytdlp_cookies_env}")
+        elif cookies_file and os.path.exists(cookies_file):
+            ydl_opts['cookiefile'] = cookies_file
+            logger.info(f"[YtdlpConfig] Using production cookies file from DB path: {cookies_file}")
+        else:
+            logger.info("[YtdlpConfig] No production cookies file configured.")
+        logger.info("[YtdlpConfig] local browser cookies = disabled")
+    else:
+        # Local Development: Use cookies-from-browser chrome if no database cookie file is configured
+        if cookies_file and os.path.exists(cookies_file):
+            ydl_opts['cookiefile'] = cookies_file
+            logger.info(f"[YtdlpConfig] Using local cookies file: {cookies_file}")
+            logger.info("[YtdlpConfig] local browser cookies = disabled")
+        else:
+            # Automatically use chrome's authenticated session
+            ydl_opts['cookiesfrombrowser'] = ('chrome',)
+            logger.info("[YtdlpConfig] local browser cookies = enabled")
+
+    # 5. Extractor args for player clients
+    client_name = settings.ytdlp_player_client if settings else 'ios'
+    # Ensure extractor_args dict exists
+    ydl_opts.setdefault('extractor_args', {})
+    # Ensure youtube dict exists under extractor_args
+    ydl_opts['extractor_args'].setdefault('youtube', {})
+    # Set the player_client order
+    ydl_opts['extractor_args']['youtube']['player_client'] = [client_name, 'default']
+
+    # 6. PO Token Provider URL Configuration
+    pot_provider_url = os.environ.get('POT_PROVIDER_URL') or os.environ.get('BGUTIL_POT_PROVIDER_URL')
+    if not pot_provider_url and not is_render:
+        pot_provider_url = 'http://127.0.0.1:4416'
+        
+    if pot_provider_url:
+        ydl_opts['extractor_args']['youtubepot-bgutilhttp'] = {
+            'base_url': [pot_provider_url]
+        }
+        logger.info("[YtdlpConfig] PO provider = enabled")
+    else:
+        logger.info("[YtdlpConfig] PO provider = disabled")
+
+    return ydl_opts
+
 class YtdlpError(Exception):
     """Base exception for yt-dlp client operations."""
     pass
@@ -16,28 +103,18 @@ class YtdlpRateLimitError(YtdlpError):
 class YtdlpClient:
 
     def __init__(self, proxy: str = None, cookies_file: str = None, client: str = 'ios'):
-        self.base_options = {
+        class MockSettings:
+            def __init__(self, p, c_f, cl):
+                self.ytdlp_proxy = p
+                self.cookies_file_path = c_f
+                self.ytdlp_player_client = cl
+        
+        settings = MockSettings(proxy, cookies_file, client)
+        self.base_options = configure_ytdlp_options({
             'quiet': True,
             'no_warnings': True,
             'ignoreerrors': True,
-        }
-        if proxy:
-            self.base_options['proxy'] = proxy
-        if cookies_file:
-            self.base_options['cookiefile'] = cookies_file
-            
-        # Extractor args for client spoofing and PO token provider
-        self.base_options['extractor_args'] = {
-            'youtube': {
-                'player_client': [client, 'default']
-            }
-        }
-        
-        pot_provider_url = os.environ.get('POT_PROVIDER_URL')
-        if pot_provider_url:
-            self.base_options['extractor_args']['youtubepot-bgutilhttp'] = {
-                'base_url': [pot_provider_url]
-            }
+        }, settings)
 
     def _get_ydl(self, custom_opts: Dict[str, Any] = None) -> YoutubeDL:
         opts = self.base_options.copy()
