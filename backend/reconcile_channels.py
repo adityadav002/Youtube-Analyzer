@@ -19,12 +19,12 @@ def reconcile_channels():
             print(f"Reconciling channel: {channel.display_name} ({channel.id})...")
             
             # Fetch raw metadata from YouTube
-            from app.extraction.ytdlp_client import YtdlpClient
-            client = YtdlpClient()
+            from app.services.youtube_api_service import YouTubeApiService
+            client = YouTubeApiService()
             yt_data = {}
             try:
                 print("  Fetching live metadata from YouTube (true video count, view count, and join date)...")
-                yt_data = client.extract_channel_metadata(f"https://www.youtube.com/channel/{channel.id}")
+                yt_data = client.fetch_channel_metadata(channel.id)
             except Exception as e:
                 print(f"  Warning: failed to fetch YouTube metadata: {e}")
                 

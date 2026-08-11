@@ -6,7 +6,7 @@ from typing import Dict, Any, List, Tuple, Optional
 
 from sqlalchemy import or_
 from app import db
-from app.extraction.ytdlp_client import YtdlpClient
+from app.services.youtube_api_service import YouTubeApiService
 from app.models.video import Video
 from app.models.channel import Channel
 from app.models.transcript import Transcript
@@ -79,10 +79,10 @@ class SearchService:
                     logger.warning(f"Malformed or invalid cached JSON for query '{query_truncated}': {json_err}. Treating as cache miss.")
                     # Let it fall through to run fresh yt-dlp search
 
-        # Search via yt-dlp (throws YtdlpRateLimitError or YtdlpError)
-        logger.info(f"Searching YouTube via yt-dlp for: {query_truncated} (type: {search_type})")
-        client = YtdlpClient()
-        results = client.search_youtube(query_truncated, search_type, max_results)
+        # Search via YouTube Data API
+        logger.info(f"Searching YouTube via YouTube Data API for: {query_truncated} (type: {search_type})")
+        api_service = YouTubeApiService()
+        results = api_service.search_youtube(query_truncated, search_type, max_results)
         
         # Save search results to cache
         try:

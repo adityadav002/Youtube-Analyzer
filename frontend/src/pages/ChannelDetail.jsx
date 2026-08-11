@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Users, Video, Eye, Calendar, BadgeCheck, Loader2 } from 'lucide-react';
+import { ArrowLeft, Users, Video, Eye, Calendar, BadgeCheck, Loader2, CheckCircle } from 'lucide-react';
 import { getChannel, refreshChannel } from '../api/channels';
 import { getVideos } from '../api/videos';
 import axios from 'axios';
@@ -41,6 +41,7 @@ export default function ChannelDetail() {
   const [activeJobId, setActiveJobId] = useState(null);
   const [jobStatus, setJobStatus] = useState(null);
   const [jobError, setJobError] = useState(null);
+  const [crawlResult, setCrawlResult] = useState(null);
 
   useEffect(() => {
     if (!activeJobId) return;
@@ -48,12 +49,15 @@ export default function ChannelDetail() {
     const intervalId = setInterval(async () => {
       try {
         const response = await axios.get(`${API_BASE_URL}/jobs/${activeJobId}`);
-        const { status, error_message } = response.data;
+        const { status, error_message, payload } = response.data;
         setJobStatus(status);
         if (status === 'complete') {
           clearInterval(intervalId);
           setActiveJobId(null);
           setJobStatus(null);
+          if (payload && payload.result) {
+            setCrawlResult(payload.result);
+          }
           queryClient.invalidateQueries({ queryKey: ['videos', 'channel', id] });
           queryClient.invalidateQueries({ queryKey: ['channel', id] });
         } else if (status === 'failed') {
@@ -73,9 +77,10 @@ export default function ChannelDetail() {
   const crawlLatestMutation = useMutation({
     mutationFn: async () => {
       setJobError(null);
+      setCrawlResult(null);
       const response = await axios.post(`${API_BASE_URL}/channels/${id}/crawl`, {
         start_index: 1,
-        limit: 20,
+        limit: 50,
         refresh: false
       });
       return response.data;
@@ -91,9 +96,10 @@ export default function ChannelDetail() {
   const refreshVideosMutation = useMutation({
     mutationFn: async () => {
       setJobError(null);
+      setCrawlResult(null);
       const response = await axios.post(`${API_BASE_URL}/channels/${id}/crawl`, {
         start_index: 1,
-        limit: 20,
+        limit: 50,
         refresh: true
       });
       return response.data;
@@ -109,6 +115,7 @@ export default function ChannelDetail() {
   const loadMoreMutation = useMutation({
     mutationFn: async () => {
       setJobError(null);
+      setCrawlResult(null);
       const response = await axios.post(`${API_BASE_URL}/channels/${id}/crawl`, {
         load_more: true,
         limit: 20
@@ -187,19 +194,26 @@ export default function ChannelDetail() {
                 onClick={() => crawlLatestMutation.mutate()}
                 disabled={crawlLatestMutation.isPending || !!activeJobId}
                 className="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50 flex items-center"
+                title="Target distribution: 30 Videos, 10 Shorts, 10 Live Streams"
               >
                 {crawlLatestMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                Crawl Latest 20
+                Crawl 50 Videos
               </button>
               <button 
                 onClick={() => refreshVideosMutation.mutate()}
                 disabled={refreshVideosMutation.isPending || !!activeJobId}
                 className="px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors shadow-sm disabled:opacity-50 flex items-center"
+                title="Refresh videos from YouTube"
               >
                 {refreshVideosMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                 Refresh Videos
               </button>
             </div>
+          </div>
+          <div className="mt-2 text-right">
+            <span className="text-xs text-gray-400">
+              * Target crawl distribution: 30 Videos, 10 Shorts, 10 Live Streams
+            </span>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
@@ -279,6 +293,35 @@ export default function ChannelDetail() {
         {jobError && (
           <div className="bg-red-50 border border-red-100 rounded-xl p-4 flex items-center space-x-3 mb-6 text-red-800 font-medium shadow-sm">
             <span>Error: {jobError}</span>
+          </div>
+        )}
+
+        {crawlResult && (
+          <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-6 mb-6 shadow-sm flex flex-col space-y-3 animate-fadeIn">
+            <h3 className="text-emerald-950 font-bold text-lg flex items-center">
+              <CheckCircle className="w-5 h-5 text-emerald-600 mr-2" /> Crawl Job Completed Successfully!
+            </h3>
+            <p className="text-emerald-800 text-sm">
+              We completed crawling the uploads playlist. The following videos were imported/updated:
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2">
+              <div className="bg-white p-3 rounded-lg border border-emerald-200 shadow-sm">
+                <div className="text-xs text-emerald-600 font-medium">Normal Videos</div>
+                <div className="text-lg font-bold text-emerald-950">{crawlResult.normal} / {crawlResult.target_normal}</div>
+              </div>
+              <div className="bg-white p-3 rounded-lg border border-emerald-200 shadow-sm">
+                <div className="text-xs text-emerald-600 font-medium">Shorts</div>
+                <div className="text-lg font-bold text-emerald-950">{crawlResult.shorts} / {crawlResult.target_shorts}</div>
+              </div>
+              <div className="bg-white p-3 rounded-lg border border-emerald-200 shadow-sm">
+                <div className="text-xs text-emerald-600 font-medium">Live Streams</div>
+                <div className="text-lg font-bold text-emerald-950">{crawlResult.live} / {crawlResult.target_live}</div>
+              </div>
+              <div className="bg-white p-3 rounded-lg border border-emerald-200 shadow-sm">
+                <div className="text-xs text-emerald-600 font-medium">Total Imported</div>
+                <div className="text-lg font-bold text-emerald-950">{crawlResult.total} / {crawlResult.target_total}</div>
+              </div>
+            </div>
           </div>
         )}
 

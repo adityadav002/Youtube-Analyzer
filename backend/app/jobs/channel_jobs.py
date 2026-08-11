@@ -18,8 +18,9 @@ def extract_channel_metadata_task(self, job_id: str, url: str):
     db.session.commit()
     
     try:
-        client = YtdlpClient()
-        data = client.extract_channel_metadata(url)
+        from app.services.youtube_api_service import YouTubeApiService
+        api_service = YouTubeApiService()
+        data = api_service.fetch_channel_metadata(url)
         
         channel_id = data.get('id')
         if not channel_id:

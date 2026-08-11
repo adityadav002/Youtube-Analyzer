@@ -59,12 +59,11 @@ def resolve_video(video_identifier: str) -> Video:
         
     # Video does not exist. Import lightweight metadata using yt-dlp.
     try:
-        from app.extraction.ytdlp_client import YtdlpClient
+        from app.services.youtube_api_service import YouTubeApiService
         from app.models.channel import Channel
         
-        url = f"https://youtube.com/watch?v={video_id}"
-        client = YtdlpClient()
-        video_data = client.extract_video_metadata(url)
+        api_service = YouTubeApiService()
+        video_data = api_service.fetch_video_metadata(video_id)
         
         channel_id = video_data.get('channel_id')
         if not channel_id:

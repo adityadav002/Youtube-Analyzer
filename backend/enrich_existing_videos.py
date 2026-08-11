@@ -6,7 +6,7 @@ sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 from app import create_app, db
 from app.models.video import Video
-from app.extraction.ytdlp_client import YtdlpClient
+from app.services.youtube_api_service import YouTubeApiService
 
 def enrich_existing():
     app = create_app('development')
@@ -15,7 +15,7 @@ def enrich_existing():
         videos = Video.query.all()
         print(f"Total videos in DB: {len(videos)}")
         
-        client = YtdlpClient()
+        client = YouTubeApiService()
         count = 0
         for video in videos:
             # If formats are empty, let's extract them
@@ -23,7 +23,7 @@ def enrich_existing():
                 print(f"Enriching formats & chapters for video: {video.title} ({video.id})...")
                 url = f"https://youtube.com/watch?v={video.id}"
                 try:
-                    data = client.extract_video_metadata(url)
+                    data = client.fetch_video_metadata(video.id)
                     
                     # Update formats and chapters
                     video.formats = data.get('formats', [])

@@ -26,93 +26,23 @@ def crawl_channel_videos_task(self, job_id: str, channel_id: str):
     limit = payload.get('limit', 20)
     refresh_mode = payload.get('refresh_mode', False)
     
-    end_index = start_index + limit - 1
-    
-    logger.info(f"Crawl progress: Starting stage 1 crawl for channel {channel_id} (start_index={start_index}, end_index={end_index}, refresh_mode={refresh_mode})")
+    logger.info(f"Crawl progress: Starting crawl for channel {channel_id} using YouTube Data API v3 (start_index={start_index}, limit={limit}, refresh_mode={refresh_mode})")
     
     try:
         channel = ChannelRepository.get_by_id(channel_id)
         if not channel:
             raise Exception("Channel not found")
 
-        client = YtdlpClient()
+        from app.services.youtube_api_service import YouTubeApiService
+        api_service = YouTubeApiService()
 
-        # Crawl all three tabs: Videos, Shorts, and Live Streams
-        tabs = [
-            (f"https://youtube.com/channel/{channel_id}/videos",  False, False),
-            (f"https://youtube.com/channel/{channel_id}/shorts",  True,  False),
-            (f"https://youtube.com/channel/{channel_id}/streams", False, True),
-        ]
-
-        all_videos_dict = {}
-
-        for tab_url, tab_is_short, tab_is_live in tabs:
-            try:
-                raw_videos = client.extract_flat_playlist(tab_url, start_index=start_index, end_index=end_index)
-                logger.info(f"Crawl progress: Tab '{tab_url}' returned {len(raw_videos)} entries.")
-            except Exception as tab_err:
-                logger.warning(f"Crawl progress: Skipping tab {tab_url} due to error: {tab_err}")
-                raw_videos = []
-
-            for v in raw_videos:
-                video_id = v['id']
-
-                # In refresh mode stop on first already-seen video (only for main Videos tab)
-                if refresh_mode and not tab_is_short and not tab_is_live:
-                    existing = VideoRepository.get_by_id(video_id)
-                    if existing:
-                        logger.info(f"Crawl progress: Encountered existing video {video_id} in refresh mode. Stopping scan.")
-                        break
-
-                v['channel_id'] = channel_id
-                v.pop('url', None)
-
-                # Tag the stub with the correct content-type flags from the tab
-                v['is_short'] = tab_is_short
-                v['is_live']  = tab_is_live
-
-                if not v.get('thumbnail_url'):
-                    v['thumbnail_url'] = f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
-
-                if video_id not in all_videos_dict:
-                    all_videos_dict[video_id] = v
-                else:
-                    # Merge classification logic: prioritize Live > Short > Normal
-                    existing_entry = all_videos_dict[video_id]
-                    merged_is_live = existing_entry['is_live'] or tab_is_live
-                    merged_is_short = (existing_entry['is_short'] or tab_is_short) and not merged_is_live
-                    
-                    existing_entry['is_live'] = merged_is_live
-                    existing_entry['is_short'] = merged_is_short
-
-        # Convert to list and log classification decisions
-        all_videos_to_save = list(all_videos_dict.values())
-        for v in all_videos_to_save:
-            source_name = 'videos'
-            if v['is_live']:
-                source_name = 'streams'
-            elif v['is_short']:
-                source_name = 'shorts'
-                
-            class_name = 'NORMAL'
-            if v['is_live']:
-                class_name = 'LIVE'
-            elif v['is_short']:
-                class_name = 'SHORT'
-                
-            logger.info(
-                f"Video ID: {v['id']}\n"
-                f"Source: {source_name}\n"
-                f"live_status: {v.get('live_status', 'not_live')}\n"
-                f"duration: {v.get('duration')}\n"
-                f"Classification: {class_name}\n"
-                f"is_short={v['is_short']}\n"
-                f"is_live={v['is_live']}"
-            )
-
-        # Bulk create stubs across all tabs
-        inserted, updated = VideoRepository.bulk_create_stubs_tracked(all_videos_to_save)
-        logger.info(f"Crawl progress: Stage 1 saved. Inserted={inserted}, Updated={updated} (all tabs combined)")
+        # Crawl and enrich videos using the YouTube Data API
+        videos_data, inserted, updated, result_counts = api_service.crawl_channel_videos(
+            channel_id=channel_id,
+            start_index=start_index,
+            limit=limit,
+            refresh_mode=refresh_mode
+        )
 
         # Update channel statistics safely
         if channel:
@@ -131,21 +61,20 @@ def crawl_channel_videos_task(self, job_id: str, channel_id: str):
                 
             channel.last_crawled_at = datetime.now(timezone.utc)
             db.session.commit()
-            logger.info("Crawl progress: Commit success: Reconciled and updated channel statistics.")
+            logger.info("Crawl progress: Reconciled and updated channel statistics.")
+
+        # Update job payload with the crawl result details
+        current_payload = job.payload or {}
+        current_payload['result'] = result_counts
+        job.payload = current_payload
 
         job.status = 'complete'
         job.target_id = channel_id
         db.session.commit()
-
-        # Stage 2: Dispatch deep background extraction tasks asynchronously
-        for v in all_videos_to_save:
-            dispatch_task(extract_video_metadata_task, None, v['id'])
-            logger.info(f"Crawl progress: Dispatched Stage 2 enrichment for video {v['id']}")
-            
+        
     except Exception as e:
         logger.exception(f"Failed to crawl videos for channel {channel_id}")
         db.session.rollback()
-        logger.info("Crawl progress: Rollback: Rolled back transaction due to crawl task failure.")
         job.status = 'failed'
         job.error_message = str(e)
         db.session.commit()
@@ -172,11 +101,10 @@ def extract_video_metadata_task(self, job_id: str, video_id: str = None):
         db.session.commit()
         
     try:
-        url = f"https://youtube.com/watch?v={real_video_id}"
-        logger.info(f"Starting metadata extraction for video {real_video_id}")
-        
-        client = YtdlpClient()
-        data = client.extract_video_metadata(url)
+        logger.info(f"Starting metadata extraction for video {real_video_id} using YouTube Data API v3")
+        from app.services.youtube_api_service import YouTubeApiService
+        api_service = YouTubeApiService()
+        data = api_service.fetch_video_metadata(real_video_id)
         
         # Log metadata properties
         logger.info(
