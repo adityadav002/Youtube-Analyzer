@@ -454,55 +454,8 @@ def get_safe_filename(history):
                 ext = ext_part.lstrip('.')
     return f"{safe_title}.{ext}"
 
-def stream_file_generator(history_id):
-    import time
-    from flask import current_app
-    from app import db
-    from app.models.history import DownloadHistory
-    from app.models.queue import ProcessingQueue
-    from app.jobs.video_jobs import cleanup_temp_files
-    
-    file_path = None
-    job_id = None
-    
-    start_time = time.time()
+def stream_file_generator(file_path, history_id, app):
     try:
-        while True:
-            db.session.expire_all()
-            history = db.session.query(DownloadHistory).get(history_id)
-            if not history:
-                logger.error(f"Download history {history_id} record not found during stream waiting.")
-                raise Exception("Download history record deleted.")
-                
-            if history.status == 'complete':
-                file_path = history.file_path
-                break
-                
-            if history.status in ['failed', 'cancelled']:
-                logger.error(f"Download history {history_id} failed or cancelled during stream waiting: status={history.status}, error={history.error_message}")
-                raise Exception(f"Download failed or was cancelled: {history.error_message or ''}")
-                
-            if not job_id:
-                try:
-                    job = db.session.query(ProcessingQueue).filter(
-                        ProcessingQueue.job_type == 'download_video',
-                        ProcessingQueue.target_id == history.video_id,
-                        ProcessingQueue.status.in_(['queued', 'processing'])
-                    ).order_by(ProcessingQueue.created_at.desc()).first()
-                    if job:
-                        job_id = job.id
-                except Exception as je:
-                    logger.warning(f"Error querying active job: {je}")
-                    
-            # Timeout after 10 minutes of no completion
-            if time.time() - start_time > 600:
-                raise Exception("Download timeout.")
-                
-            time.sleep(0.5)
-            
-        if not file_path or not os.path.exists(file_path):
-            raise Exception(f"Downloaded file not found on disk: {file_path}")
-            
         logger.info(f"Starting file stream for history {history_id}: {file_path}")
         # Stream the file content
         with open(file_path, 'rb') as f:
@@ -515,26 +468,26 @@ def stream_file_generator(history_id):
     except GeneratorExit:
         logger.info(f"Stream connection closed by client for history {history_id}. Initiating cancellation/cleanup.")
         try:
-            db.session.expire_all()
-            history = db.session.query(DownloadHistory).get(history_id)
-            if history and history.status not in ['complete', 'failed', 'cancelled']:
-                history.status = 'cancelled'
-                db.session.commit()
+            with app.app_context():
+                from app import db
+                from app.models.history import DownloadHistory
+                from app.models.queue import ProcessingQueue
                 
-            # Cancel the queue job
-            if not job_id and history:
-                job = db.session.query(ProcessingQueue).filter(
-                    ProcessingQueue.job_type == 'download_video',
-                    ProcessingQueue.target_id == history.video_id,
-                    ProcessingQueue.status.in_(['queued', 'processing'])
-                ).order_by(ProcessingQueue.created_at.desc()).first()
-                if job:
-                    job_id = job.id
-            if job_id:
-                job = db.session.query(ProcessingQueue).get(job_id)
-                if job and job.status not in ['complete', 'failed', 'cancelled']:
-                    job.status = 'cancelled'
+                history = db.session.query(DownloadHistory).get(history_id)
+                if history and history.status not in ['complete', 'failed', 'cancelled']:
+                    history.status = 'cancelled'
                     db.session.commit()
+                    
+                # Cancel the queue job
+                if history:
+                    job = db.session.query(ProcessingQueue).filter(
+                        ProcessingQueue.job_type == 'download_video',
+                        ProcessingQueue.target_id == history.video_id,
+                        ProcessingQueue.status.in_(['queued', 'processing'])
+                    ).order_by(ProcessingQueue.created_at.desc()).first()
+                    if job:
+                        job.status = 'cancelled'
+                        db.session.commit()
         except Exception as ex:
             logger.warning(f"Failed to cancel history/job on client disconnect: {ex}")
         raise
@@ -554,13 +507,18 @@ def stream_file_generator(history_id):
                 
         # Always clean up associated temp ytdl/part files for this download ID
         try:
-            download_dir = current_app.config.get('DOWNLOAD_DIR') or os.path.join(os.getcwd(), 'downloads')
-            cleanup_temp_files(download_dir, history_id)
+            with app.app_context():
+                download_dir = app.config.get('DOWNLOAD_DIR') or os.path.join(os.getcwd(), 'downloads')
+                from app.jobs.video_jobs import cleanup_temp_files
+                cleanup_temp_files(download_dir, history_id)
         except Exception as e:
             logger.warning(f"Failed to clean up temp files for history {history_id}: {e}")
 
 @download_bp.route('/<int:download_id>/file', methods=['GET'])
 def download_file(download_id):
+    import time
+    from flask import stream_with_context
+    
     history = db.session.query(DownloadHistory).get(download_id)
     if not history:
         return jsonify({'error': 'Download record not found'}), 404
@@ -629,11 +587,37 @@ def download_file(download_id):
             logger.exception(f"Failed to reset/start download for streaming: {e}")
             return jsonify({'error': 'Failed to initiate stream download'}), 500
             
+    # Wait for the download task to complete (under Flask request context)
+    start_time = time.time()
+    while True:
+        db.session.expire_all()
+        history = db.session.query(DownloadHistory).get(download_id)
+        if not history:
+            return jsonify({'error': 'Download record deleted'}), 404
+            
+        if history.status == 'complete':
+            break
+            
+        if history.status in ['failed', 'cancelled']:
+            return jsonify({'error': f"Download failed: {history.error_message or 'Unknown error'}"}), 400
+            
+        if time.time() - start_time > 600: # 10 minutes timeout
+            return jsonify({'error': 'Download timeout'}), 504
+            
+        time.sleep(0.5)
+
+    # Extract required database values before streaming starts
+    file_path = history.file_path
+    if not file_path or not os.path.exists(file_path):
+        return jsonify({'error': f"Downloaded file not found on disk: {file_path}"}), 404
+        
+    filename = get_safe_filename(history)
+    app_instance = current_app._get_current_object()
+
     # Return streaming response
     try:
-        filename = get_safe_filename(history)
         return Response(
-            stream_file_generator(history.id),
+            stream_with_context(stream_file_generator(file_path, history.id, app_instance)),
             mimetype='application/octet-stream',
             headers={
                 'Content-Disposition': f'attachment; filename="{filename}"'

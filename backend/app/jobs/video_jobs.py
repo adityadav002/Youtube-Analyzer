@@ -385,6 +385,12 @@ def download_video_task(self, job_id: str, history_id: int):
             }
         }
         
+        pot_provider_url = os.environ.get('POT_PROVIDER_URL')
+        if pot_provider_url:
+            ydl_opts['extractor_args']['youtubepot-bgutilhttp'] = {
+                'base_url': [pot_provider_url]
+            }
+        
         if rate_limit:
             parsed_limit = parse_rate_limit(rate_limit)
             if parsed_limit:
@@ -518,8 +524,16 @@ def download_video_task(self, job_id: str, history_id: int):
         cleanup_temp_files(download_dir, history_id)
         
         err_msg = str(e)
-        if download_type == 'subtitle':
-            err_lower = err_msg.lower()
+        err_lower = err_msg.lower()
+        if any(msg in err_lower for msg in [
+            "confirm you're not a bot",
+            "confirm you’re not a bot",
+            "sign in to confirm",
+            "confirm your identity",
+            "not a bot"
+        ]):
+            err_msg = "YOUTUBE_BOT_CHECK: YouTube requires verification (Bot check). Please configure a PO Token Provider or server-side cookies."
+        elif download_type == 'subtitle':
             if 'subtitle' in err_lower or 'caption' in err_lower or 'not available' in err_lower or 'no video formats' in err_lower or 'file not found' in err_lower or 'empty' in err_lower:
                 err_msg = f"No subtitles or captions are available for this video in language '{quality}'."
                 

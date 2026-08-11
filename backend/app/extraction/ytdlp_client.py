@@ -1,5 +1,6 @@
 from yt_dlp import YoutubeDL
 import logging
+import os
 from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -25,12 +26,18 @@ class YtdlpClient:
         if cookies_file:
             self.base_options['cookiefile'] = cookies_file
             
-        # Extractor args for client spoofing
+        # Extractor args for client spoofing and PO token provider
         self.base_options['extractor_args'] = {
             'youtube': {
                 'player_client': [client, 'default']
             }
         }
+        
+        pot_provider_url = os.environ.get('POT_PROVIDER_URL')
+        if pot_provider_url:
+            self.base_options['extractor_args']['youtubepot-bgutilhttp'] = {
+                'base_url': [pot_provider_url]
+            }
 
     def _get_ydl(self, custom_opts: Dict[str, Any] = None) -> YoutubeDL:
         opts = self.base_options.copy()
