@@ -339,17 +339,18 @@ class DownloadProgressHook:
                     db.session.rollback()
                     logger.warning(f"Failed to update download progress in DB: {str(e)}")
 
-def cleanup_temp_files(download_dir, video_id):
+def cleanup_temp_files(download_dir, history_id):
     import os
     try:
         if os.path.exists(download_dir):
+            prefix = f"temp_{history_id}_"
             for filename in os.listdir(download_dir):
-                if video_id in filename and (filename.endswith('.part') or filename.endswith('.ytdl') or filename.endswith('.temp')):
+                if filename.startswith(prefix):
                     file_path = os.path.join(download_dir, filename)
                     if os.path.exists(file_path):
                         os.remove(file_path)
     except Exception as e:
-        logger.warning(f"Failed to clean up temp files for video {video_id}: {str(e)}")
+        logger.warning(f"Failed to clean up temp files for history {history_id}: {str(e)}")
 
 def parse_rate_limit(rate_limit_str):
     if not rate_limit_str:
@@ -435,7 +436,7 @@ def download_video_task(self, job_id: str, history_id: int):
         client_name = settings.ytdlp_player_client if settings else 'ios'
         rate_limit = settings.ytdlp_rate_limit if settings else None
         
-        outtmpl = os.path.join(download_dir, '%(title)s [%(id)s].%(ext)s')
+        outtmpl = os.path.join(download_dir, f"temp_{history_id}_%(title)s [%(id)s].%(ext)s")
         ffmpeg_available = shutil.which('ffmpeg') is not None
         
         ydl_opts = {
@@ -509,7 +510,7 @@ def download_video_task(self, job_id: str, history_id: int):
             ext = thumb_url.split('.')[-1].split('?')[0]
             if ext not in ['jpg', 'png', 'webp', 'jpeg']:
                 ext = 'jpg'
-            filename = f"{safe_title} [{video_id}].{ext}"
+            filename = f"temp_{history_id}_{safe_title} [{video_id}].{ext}"
             file_path = os.path.join(download_dir, filename)
             
             logger.info(f"Downloading thumbnail from {thumb_url} to {file_path}")
@@ -573,7 +574,7 @@ def download_video_task(self, job_id: str, history_id: int):
             
     except CancelledError:
         logger.info(f"Download job {job_id} was cancelled by user")
-        cleanup_temp_files(download_dir, video_id)
+        cleanup_temp_files(download_dir, history_id)
         db.session.rollback()
         history = db.session.query(DownloadHistory).get(history_id)
         job = db.session.query(ProcessingQueue).get(job_id)
@@ -586,7 +587,7 @@ def download_video_task(self, job_id: str, history_id: int):
     except Exception as e:
         logger.exception(f"Download task failed for job {job_id}")
         db.session.rollback()
-        cleanup_temp_files(download_dir, video_id)
+        cleanup_temp_files(download_dir, history_id)
         
         err_msg = str(e)
         if download_type == 'subtitle':

@@ -108,15 +108,26 @@ export default function Downloader() {
   // Mutations
   const startDownloadMutation = useMutation({
     mutationFn: startDownload,
-    onSuccess: () => {
+    onSuccess: (data) => {
       setUrl('');
       setVideoPreview(null);
       setNotification({
         type: 'success',
-        message: 'Download queued successfully!'
+        message: 'Download queued successfully! Your stream will start downloading shortly.'
       });
       setTimeout(() => setNotification(null), 5000);
       queryClient.invalidateQueries({ queryKey: ['downloads'] });
+
+      // Automatically trigger browser download using an invisible iframe
+      if (data && data.history_id) {
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = `${API_BASE_URL}/downloads/${data.history_id}/file`;
+        document.body.appendChild(iframe);
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+        }, 10000);
+      }
     },
     onError: (err) => {
       const status = err.response?.status;

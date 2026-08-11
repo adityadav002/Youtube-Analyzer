@@ -5,7 +5,7 @@ services:
     env: python
     rootDir: backend
     buildCommand: chmod +x build.sh && ./build.sh
-    startCommand: gunicorn --bind 0.0.0.0:$PORT wsgi:app
+    startCommand: gunicorn --timeout 120 --bind 0.0.0.0:$PORT wsgi:app
     healthCheckPath: /api/health
     envVars:
       - key: FLASK_ENV

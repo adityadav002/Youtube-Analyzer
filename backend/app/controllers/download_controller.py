@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, current_app, send_file
+from flask import Blueprint, request, jsonify, current_app, send_file, Response
 from app import db
 from app.models.history import DownloadHistory
 from app.models.queue import ProcessingQueue
@@ -363,7 +363,7 @@ def cancel_download(download_id):
     
     from app.jobs.video_jobs import cleanup_temp_files
     download_dir = current_app.config.get('DOWNLOAD_DIR') or os.path.join(os.getcwd(), 'downloads')
-    cleanup_temp_files(download_dir, history.video_id)
+    cleanup_temp_files(download_dir, history.id)
     
     return jsonify({'status': 'cancelled'}), 200
 
@@ -431,25 +431,218 @@ def retry_download(download_id):
         'status': 'queued'
     }), 202
 
+def get_safe_filename(history):
+    video = db.session.query(Video).filter(Video.id == history.video_id).first()
+    title = video.title if video else f"download_{history.video_id}"
+    from yt_dlp.utils import sanitize_filename
+    safe_title = sanitize_filename(title)
+    
+    ext = 'mp4'
+    if history.download_type == 'audio':
+        try:
+            prev_job = db.session.query(ProcessingQueue).filter(
+                ProcessingQueue.job_type == 'download_video',
+                ProcessingQueue.target_id == history.video_id
+            ).order_by(ProcessingQueue.created_at.desc()).first()
+            ext = prev_job.payload.get('format', 'mp3') if prev_job else 'mp3'
+        except Exception:
+            ext = 'mp3'
+    elif history.download_type == 'thumbnail':
+        ext = 'jpg'
+        if history.file_path:
+            _, ext_part = os.path.splitext(history.file_path)
+            if ext_part:
+                ext = ext_part.lstrip('.')
+    return f"{safe_title}.{ext}"
+
+def stream_file_generator(history_id):
+    import time
+    from flask import current_app
+    from app import db
+    from app.models.history import DownloadHistory
+    from app.models.queue import ProcessingQueue
+    from app.jobs.video_jobs import cleanup_temp_files
+    
+    file_path = None
+    job_id = None
+    
+    start_time = time.time()
+    try:
+        while True:
+            db.session.expire_all()
+            history = db.session.query(DownloadHistory).get(history_id)
+            if not history:
+                logger.error(f"Download history {history_id} record not found during stream waiting.")
+                raise Exception("Download history record deleted.")
+                
+            if history.status == 'complete':
+                file_path = history.file_path
+                break
+                
+            if history.status in ['failed', 'cancelled']:
+                logger.error(f"Download history {history_id} failed or cancelled during stream waiting: status={history.status}, error={history.error_message}")
+                raise Exception(f"Download failed or was cancelled: {history.error_message or ''}")
+                
+            if not job_id:
+                try:
+                    job = db.session.query(ProcessingQueue).filter(
+                        ProcessingQueue.job_type == 'download_video',
+                        ProcessingQueue.target_id == history.video_id,
+                        ProcessingQueue.status.in_(['queued', 'processing'])
+                    ).order_by(ProcessingQueue.created_at.desc()).first()
+                    if job:
+                        job_id = job.id
+                except Exception as je:
+                    logger.warning(f"Error querying active job: {je}")
+                    
+            # Timeout after 10 minutes of no completion
+            if time.time() - start_time > 600:
+                raise Exception("Download timeout.")
+                
+            time.sleep(0.5)
+            
+        if not file_path or not os.path.exists(file_path):
+            raise Exception(f"Downloaded file not found on disk: {file_path}")
+            
+        logger.info(f"Starting file stream for history {history_id}: {file_path}")
+        # Stream the file content
+        with open(file_path, 'rb') as f:
+            while True:
+                chunk = f.read(8192 * 16) # 128KB chunk
+                if not chunk:
+                    break
+                yield chunk
+                
+    except GeneratorExit:
+        logger.info(f"Stream connection closed by client for history {history_id}. Initiating cancellation/cleanup.")
+        try:
+            db.session.expire_all()
+            history = db.session.query(DownloadHistory).get(history_id)
+            if history and history.status not in ['complete', 'failed', 'cancelled']:
+                history.status = 'cancelled'
+                db.session.commit()
+                
+            # Cancel the queue job
+            if not job_id and history:
+                job = db.session.query(ProcessingQueue).filter(
+                    ProcessingQueue.job_type == 'download_video',
+                    ProcessingQueue.target_id == history.video_id,
+                    ProcessingQueue.status.in_(['queued', 'processing'])
+                ).order_by(ProcessingQueue.created_at.desc()).first()
+                if job:
+                    job_id = job.id
+            if job_id:
+                job = db.session.query(ProcessingQueue).get(job_id)
+                if job and job.status not in ['complete', 'failed', 'cancelled']:
+                    job.status = 'cancelled'
+                    db.session.commit()
+        except Exception as ex:
+            logger.warning(f"Failed to cancel history/job on client disconnect: {ex}")
+        raise
+        
+    except Exception as e:
+        logger.exception(f"Error during stream generation for history {history_id}: {e}")
+        raise
+        
+    finally:
+        # Always clean up the physical file from the disk once streaming finishes or fails
+        if file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                logger.info(f"Successfully deleted temporary file: {file_path}")
+            except Exception as e:
+                logger.warning(f"Failed to delete temporary file {file_path}: {e}")
+                
+        # Always clean up associated temp ytdl/part files for this download ID
+        try:
+            download_dir = current_app.config.get('DOWNLOAD_DIR') or os.path.join(os.getcwd(), 'downloads')
+            cleanup_temp_files(download_dir, history_id)
+        except Exception as e:
+            logger.warning(f"Failed to clean up temp files for history {history_id}: {e}")
+
 @download_bp.route('/<int:download_id>/file', methods=['GET'])
 def download_file(download_id):
     history = db.session.query(DownloadHistory).get(download_id)
     if not history:
         return jsonify({'error': 'Download record not found'}), 404
         
-    if history.status != 'complete' or not history.file_path:
-        return jsonify({'error': 'Download file is not ready or failed'}), 400
-        
-    if not os.path.exists(history.file_path):
-        return jsonify({'error': 'Download file not found on disk'}), 404
-        
-    download_dir = current_app.config.get('DOWNLOAD_DIR') or os.path.join(os.getcwd(), 'downloads')
-    abs_file_path = os.path.abspath(history.file_path)
-    abs_download_dir = os.path.abspath(download_dir)
-    if not abs_file_path.startswith(abs_download_dir):
-        return jsonify({'error': 'Access denied'}), 403
-        
-    return send_file(history.file_path, as_attachment=True)
+    # Check if physical file exists. If it does not exist (e.g. deleted or Windows path),
+    # we reset the status and start a new background task to download it.
+    if not history.file_path or not os.path.exists(history.file_path):
+        # Reset database history and queue task
+        try:
+            # First check if there is already an active job running for this history record
+            active_jobs = db.session.query(ProcessingQueue).filter(
+                ProcessingQueue.job_type == 'download_video',
+                ProcessingQueue.status.in_(['queued', 'processing'])
+            ).all()
+            
+            is_already_running = False
+            for job in active_jobs:
+                if job.payload.get('history_id') == history.id:
+                    is_already_running = True
+                    break
+                    
+            if not is_already_running:
+                logger.info(f"Physical file missing for completed history {download_id}. Re-triggering download.")
+                history.status = 'pending'
+                history.progress_percent = 0
+                history.error_message = None
+                db.session.commit()
+                
+                # Retrieve format from previous job payload if possible
+                format_option = 'mp4'
+                try:
+                    prev_job = db.session.query(ProcessingQueue).filter(
+                        ProcessingQueue.job_type == 'download_video',
+                        ProcessingQueue.target_id == history.video_id
+                    ).order_by(ProcessingQueue.created_at.desc()).first()
+                    if prev_job:
+                        format_option = prev_job.payload.get('format', 'mp4')
+                except Exception:
+                    pass
+                    
+                job_id = str(uuid.uuid4())
+                job = ProcessingQueue(
+                    id=job_id,
+                    job_type='download_video',
+                    target_id=history.video_id,
+                    status='queued',
+                    payload={
+                        'url': f"https://youtube.com/watch?v={history.video_id}",
+                        'video_id': history.video_id,
+                        'download_type': history.download_type,
+                        'quality': history.quality,
+                        'format': format_option,
+                        'history_id': history.id,
+                        'progress_percent': 0,
+                        'speed': '0 B/s',
+                        'eta': 'Unknown'
+                    }
+                )
+                db.session.add(job)
+                db.session.commit()
+                
+                from app.jobs.video_jobs import download_video_task
+                dispatch_task(download_video_task, job_id, history.id)
+        except Exception as e:
+            db.session.rollback()
+            logger.exception(f"Failed to reset/start download for streaming: {e}")
+            return jsonify({'error': 'Failed to initiate stream download'}), 500
+            
+    # Return streaming response
+    try:
+        filename = get_safe_filename(history)
+        return Response(
+            stream_file_generator(history.id),
+            mimetype='application/octet-stream',
+            headers={
+                'Content-Disposition': f'attachment; filename="{filename}"'
+            }
+        )
+    except Exception as e:
+        logger.exception(f"Failed to stream download: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @download_bp.route('/<int:download_id>/open', methods=['POST'])
 def open_file_location(download_id):
