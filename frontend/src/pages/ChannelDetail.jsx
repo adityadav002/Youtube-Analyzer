@@ -7,10 +7,12 @@ import { getVideos } from '../api/videos';
 import axios from 'axios';
 import { API_BASE_URL } from '../constants';
 import VideoGrid from '../components/video/VideoGrid';
+import useNotificationStore from '../stores/notificationStore';
 
 export default function ChannelDetail() {
   const { id } = useParams();
   const queryClient = useQueryClient();
+  const notify = useNotificationStore((s) => s.addNotification);
   const [page, setPage] = useState(1);
   const [activeTab, setActiveTab] = useState('videos');
   const perPage = 20;
@@ -58,12 +60,14 @@ export default function ChannelDetail() {
           if (payload && payload.result) {
             setCrawlResult(payload.result);
           }
+          notify({ type: 'success', title: 'Crawl Complete', message: `Video crawl finished for this channel.` });
           queryClient.invalidateQueries({ queryKey: ['videos', 'channel', id] });
           queryClient.invalidateQueries({ queryKey: ['channel', id] });
         } else if (status === 'failed') {
           clearInterval(intervalId);
           setActiveJobId(null);
           setJobStatus(null);
+          notify({ type: 'error', title: 'Crawl Failed', message: error_message || 'Video crawl job failed.' });
           setJobError(error_message || 'Crawl job failed.');
         }
       } catch (err) {

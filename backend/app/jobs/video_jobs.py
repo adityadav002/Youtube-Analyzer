@@ -316,6 +316,7 @@ def download_video_task(self, job_id: str, history_id: int):
     import shutil
     import requests
     import yt_dlp
+    from app.extraction.ytdlp_client import SafeYoutubeDL
     from app import db
     from app.models.queue import ProcessingQueue
     from app.models.history import DownloadHistory
@@ -461,7 +462,7 @@ def download_video_task(self, job_id: str, history_id: int):
 
             
         logger.info(f"Running yt-dlp download for url {url}")
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        with SafeYoutubeDL(ydl_opts) as ydl:
             info_dict = ydl.extract_info(url, download=True)
             filename = ydl.prepare_filename(info_dict)
             

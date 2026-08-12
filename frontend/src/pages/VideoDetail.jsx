@@ -6,10 +6,12 @@ import { getVideo } from '../api/videos';
 import { startDownload } from '../api/downloads';
 import { formatNumber, formatDuration, formatDate } from '../utils/formatters';
 import { API_BASE_URL } from '../constants';
+import useNotificationStore from '../stores/notificationStore';
 
 export default function VideoDetail() {
   const { id } = useParams();
   const queryClient = useQueryClient();
+  const notify = useNotificationStore((s) => s.addNotification);
   const [activeTab, setActiveTab] = useState('description');
   
   const [shouldPoll, setShouldPoll] = useState(true);
@@ -56,6 +58,7 @@ export default function VideoDetail() {
     a.click();
     document.body.removeChild(a);
 
+    notify({ type: 'success', title: 'Download Started', message: `"${video.title || video.id}" is being downloaded.` });
     queryClient.invalidateQueries({ queryKey: ['downloads'] });
   };
 

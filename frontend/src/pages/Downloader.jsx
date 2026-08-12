@@ -11,9 +11,11 @@ import {
 } from '../api/downloads';
 import { API_BASE_URL } from '../constants';
 import { apiClient } from '../client';
+import useNotificationStore from '../stores/notificationStore';
 
 export default function Downloader() {
   const queryClient = useQueryClient();
+  const notify = useNotificationStore((s) => s.addNotification);
 
   // Form State
   const [url, setUrl] = useState('');
@@ -111,11 +113,7 @@ export default function Downloader() {
     onSuccess: (data) => {
       setUrl('');
       setVideoPreview(null);
-      setNotification({
-        type: 'success',
-        message: 'Download queued successfully! Your stream will start downloading shortly.'
-      });
-      setTimeout(() => setNotification(null), 5000);
+      notify({ type: 'success', title: 'Download Queued', message: 'Your stream will start downloading shortly.' });
       queryClient.invalidateQueries({ queryKey: ['downloads'] });
 
       // Automatically trigger browser download using an invisible iframe
@@ -133,21 +131,11 @@ export default function Downloader() {
       const status = err.response?.status;
       const data = err.response?.data;
       if (status === 409) {
-        setNotification({
-          type: 'warning',
-          message: 'Already downloaded — ',
-          historyId: data?.history_id
-        });
+        notify({ type: 'warning', title: 'Already Downloaded', message: 'This video has already been downloaded. Check your history.' });
       } else if (status === 507) {
-        setNotification({
-          type: 'error',
-          message: 'Insufficient disk space. Please clean up files.'
-        });
+        notify({ type: 'error', title: 'Disk Full', message: 'Insufficient disk space. Please clean up files.' });
       } else {
-        setNotification({
-          type: 'error',
-          message: data?.message || err.message || 'Failed to queue download.'
-        });
+        notify({ type: 'error', title: 'Download Failed', message: data?.message || err.message || 'Failed to queue download.' });
       }
     }
   });
@@ -155,6 +143,7 @@ export default function Downloader() {
   const cancelDownloadMutation = useMutation({
     mutationFn: cancelDownload,
     onSuccess: () => {
+      notify({ type: 'info', title: 'Cancelled', message: 'Download has been cancelled.' });
       queryClient.invalidateQueries({ queryKey: ['downloads'] });
     }
   });
@@ -162,6 +151,7 @@ export default function Downloader() {
   const retryDownloadMutation = useMutation({
     mutationFn: retryDownload,
     onSuccess: () => {
+      notify({ type: 'info', title: 'Retrying', message: 'Download has been re-queued.' });
       queryClient.invalidateQueries({ queryKey: ['downloads'] });
     }
   });
@@ -171,6 +161,7 @@ export default function Downloader() {
     onSuccess: () => {
       setDeleteModal(null);
       setDeleteFileFromDisk(false);
+      notify({ type: 'success', title: 'Deleted', message: 'Download record removed.' });
       queryClient.invalidateQueries({ queryKey: ['downloads'] });
     }
   });
@@ -207,11 +198,7 @@ export default function Downloader() {
 
     const downloadUrl = `${API_BASE_URL}/videos/${videoId}/download?quality=${payloadQuality}&format=${payloadFormat}&download_type=${downloadType}`;
     
-    setNotification({
-      type: 'success',
-      message: 'Download started! Your browser will download the file directly.'
-    });
-    setTimeout(() => setNotification(null), 6000);
+    notify({ type: 'success', title: 'Download Started', message: 'Your browser will download the file directly.' });
     
     // Use a hidden anchor tag to trigger native browser download.
     // Unlike an iframe with a 15s timeout, this keeps the connection alive
@@ -578,35 +565,44 @@ export default function Downloader() {
                     </div>
 
                     {/* Progress bar */}
-                    <div className="space-y-1">
-                      <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div className="space-y-1.5">
+                      <div className="w-full bg-gray-200 rounded-full h-2.5 overflow-hidden">
                         <div
-                          className={`h-2 rounded-full transition-all duration-300 ${
+                          className={`h-full rounded-full transition-all duration-500 ease-out ${
                             isDlCancelled
-                              ? 'bg-gray-400 w-full animate-pulse'
+                              ? 'bg-gray-400 animate-pulse'
                               : dl.status === 'pending'
-                              ? 'bg-blue-400 w-1/12 animate-pulse'
-                              : 'bg-indigo-600'
+                              ? 'bg-blue-400 animate-pulse'
+                              : dl.progress_percent > 0
+                              ? 'bg-gradient-to-r from-indigo-500 to-indigo-600'
+                              : 'bg-indigo-400 animate-pulse'
                           }`}
                           style={{
                             width: isDlCancelled
                               ? '100%'
                               : dl.status === 'pending'
-                              ? '8%'
-                              : `${dl.progress_percent}%`
+                              ? '5%'
+                              : dl.progress_percent > 0
+                              ? `${Math.max(dl.progress_percent, 2)}%`
+                              : '15%'
                           }}
-                        ></div>
+                        />
                       </div>
-                      <div className="flex justify-between text-xs text-gray-500 font-medium">
-                        <span>
+                      <div className="flex justify-between text-xs font-medium">
+                        <span className={isDlCancelled ? 'text-gray-400' : 'text-indigo-600'}>
                           {isDlCancelled
                             ? 'Cancelled'
                             : dl.status === 'pending'
-                            ? 'Queued'
-                            : `${dl.progress_percent}%`}
+                            ? 'Queued — waiting to start…'
+                            : dl.progress_percent > 0
+                            ? `${dl.progress_percent}% downloaded`
+                            : 'Starting download…'}
                         </span>
-                        {dl.status === 'downloading' && !isDlCancelled && dl.speed && (
-                          <span>{dl.speed} · ETA {dl.eta}</span>
+                        {dl.status === 'downloading' && !isDlCancelled && (
+                          <span className="text-gray-500">
+                            {dl.speed ? `${dl.speed}` : ''}
+                            {dl.speed && dl.eta ? ` · ETA ${dl.eta}` : ''}
+                          </span>
                         )}
                       </div>
                     </div>

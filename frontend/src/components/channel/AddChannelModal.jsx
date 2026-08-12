@@ -3,6 +3,7 @@ import { X, Youtube, Loader2 } from 'lucide-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { addChannel } from '../../api/channels';
 import { getJobStatus } from '../../api/jobs';
+import useNotificationStore from '../../stores/notificationStore';
 
 export default function AddChannelModal({ isOpen, onClose }) {
   const [url, setUrl] = useState('');
@@ -10,6 +11,7 @@ export default function AddChannelModal({ isOpen, onClose }) {
   const [jobId, setJobId] = useState(null);
   
   const queryClient = useQueryClient();
+  const notify = useNotificationStore((s) => s.addNotification);
 
   const addMutation = useMutation({
     mutationFn: addChannel,
@@ -30,12 +32,14 @@ export default function AddChannelModal({ isOpen, onClose }) {
           if (status.status === 'complete') {
             clearInterval(interval);
             queryClient.invalidateQueries({ queryKey: ['channels'] });
+            notify({ type: 'success', title: 'Channel Added', message: 'Channel metadata extracted successfully.' });
             setJobId(null);
             setUrl('');
             onClose();
           } else if (status.status === 'failed') {
             clearInterval(interval);
             setJobId(null);
+            notify({ type: 'error', title: 'Extraction Failed', message: status.error_message || 'Failed to extract channel metadata.' });
             setError(status.error_message || 'Extraction failed');
           }
         } catch (e) {

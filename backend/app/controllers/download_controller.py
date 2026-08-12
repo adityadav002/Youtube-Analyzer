@@ -694,11 +694,48 @@ def stream_file_generator_direct(file_path):
             except Exception as e:
                 logger.warning(f"Failed to remove temporary direct download file {file_path}: {e}")
 
+class DirectProgressHook:
+    """Progress hook for synchronous direct downloads.
+    
+    Updates DownloadHistory.progress_percent in the database every ~2 seconds
+    so the GET /api/downloads polling endpoint can return live progress to the UI.
+    """
+    def __init__(self, history_id):
+        self.history_id = history_id
+        self.last_update = 0
+        self.last_pct = -1
+
+    def __call__(self, d):
+        import time
+        status = d.get('status')
+        if status != 'downloading':
+            return
+
+        total = d.get('total_bytes') or d.get('total_bytes_estimate') or 0
+        downloaded = d.get('downloaded_bytes') or 0
+        pct = int(downloaded * 100 / total) if total > 0 else 0
+
+        now = time.time()
+        if now - self.last_update < 2.0 and pct == self.last_pct:
+            return
+        self.last_update = now
+        self.last_pct = pct
+
+        try:
+            history = db.session.query(DownloadHistory).get(self.history_id)
+            if history:
+                history.progress_percent = pct
+                history.status = 'downloading'
+                db.session.commit()
+        except Exception:
+            db.session.rollback()
+
 def handle_direct_download(video_id):
     import uuid
     import tempfile
     import shutil
     import yt_dlp
+    from app.extraction.ytdlp_client import SafeYoutubeDL
     from datetime import datetime, timezone
     from flask import request, current_app, Response, stream_with_context, jsonify
     from yt_dlp.utils import sanitize_filename
@@ -818,25 +855,13 @@ def handle_direct_download(video_id):
                 
         # Execute download synchronously to temp folder
         url = f"https://youtube.com/watch?v={video_id}"
+        ydl_opts['progress_hooks'] = [DirectProgressHook(history.id)]
         logger.info("[DirectDownload] starting yt-dlp")
         logger.info(f"Direct stream download starting for {url} with options {ydl_opts}")
         
-        def _run_ytdlp_download(opts):
-            """Run yt-dlp and return (info_dict, filename_from_ydl)."""
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                info_dict = ydl.extract_info(url, download=True)
-                filename_from_ydl = ydl.prepare_filename(info_dict)
-            return info_dict, filename_from_ydl
-        
-        try:
-            info_dict, filename_from_ydl = _run_ytdlp_download(ydl_opts)
-        except yt_dlp.utils.DownloadError as de:
-            if "Could not copy Chrome cookie database" in str(de) or "failed to load cookies" in str(de):
-                logger.warning("[DirectDownload] Chrome cookie DB is locked (browser running). Retrying without browser cookies.")
-                ydl_opts.pop('cookiesfrombrowser', None)
-                info_dict, filename_from_ydl = _run_ytdlp_download(ydl_opts)
-            else:
-                raise
+        with SafeYoutubeDL(ydl_opts) as ydl:
+            info_dict = ydl.extract_info(url, download=True)
+            filename_from_ydl = ydl.prepare_filename(info_dict)
         
         base_name, _ = os.path.splitext(filename_from_ydl)
         final_ext = format_option if download_type in ['video', 'audio'] else 'mp4'

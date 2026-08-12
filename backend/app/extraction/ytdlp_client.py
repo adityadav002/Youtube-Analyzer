@@ -1,9 +1,37 @@
 from yt_dlp import YoutubeDL
+from yt_dlp.utils import DownloadError
 import logging
 import os
 from typing import Dict, Any
 
 logger = logging.getLogger(__name__)
+
+class SafeYoutubeDL(YoutubeDL):
+    """
+    Subclass of YoutubeDL that automatically falls back to downloading/extracting
+    without browser cookies if a cookie loading/decryption error occurs.
+    """
+    def extract_info(self, *args, **kwargs):
+        try:
+            return super().extract_info(*args, **kwargs)
+        except DownloadError as de:
+            err_msg = str(de)
+            cookie_error_terms = [
+                "cookie",
+                "dpapi",
+                "decrypt",
+                "keyring",
+                "failed to load cookies"
+            ]
+            if 'cookiesfrombrowser' in self.params and any(term in err_msg.lower() for term in cookie_error_terms):
+                logger.warning(f"[SafeYoutubeDL] Cookie loading or decryption failed: {err_msg}. Retrying without browser cookies.")
+                self.params.pop('cookiesfrombrowser', None)
+                
+                # Instantiate a new YoutubeDL without browser cookies to execute the retry safely
+                with YoutubeDL(self.params) as ydl:
+                    return ydl.extract_info(*args, **kwargs)
+            else:
+                raise
 
 # ---------------------------------------------------------------------------
 # Disable bgutil script-based PO Token providers.
@@ -116,11 +144,11 @@ class YtdlpClient:
             'ignoreerrors': True,
         }, settings)
 
-    def _get_ydl(self, custom_opts: Dict[str, Any] = None) -> YoutubeDL:
+    def _get_ydl(self, custom_opts: Dict[str, Any] = None) -> SafeYoutubeDL:
         opts = self.base_options.copy()
         if custom_opts:
             opts.update(custom_opts)
-        return YoutubeDL(opts)
+        return SafeYoutubeDL(opts)
 
     def extract_channel_metadata(self, url: str) -> Dict[str, Any]:
         """

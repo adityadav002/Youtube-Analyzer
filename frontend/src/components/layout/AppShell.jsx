@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import TopBar from './TopBar'
+import NotificationToast from '../notifications/NotificationToast'
 
 export default function AppShell() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -17,6 +18,7 @@ export default function AppShell() {
           </div>
         </main>
       </div>
+      <NotificationToast />
     </div>
   )
 }
