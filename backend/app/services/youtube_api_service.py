@@ -321,12 +321,6 @@ class YouTubeApiService:
                     continue
                     
                 current_index += 1
-                
-                # Check refresh mode: stop crawl on first already-seen video ID
-                if refresh_mode and video_id in existing_video_ids:
-                    logger.info(f"[Crawler] Encountered existing video {video_id} in refresh mode. Stopping scan.")
-                    stop_crawl = True
-                    break
                     
                 # Skip if we haven't reached the start_index yet (1-based)
                 if current_index < start_index:

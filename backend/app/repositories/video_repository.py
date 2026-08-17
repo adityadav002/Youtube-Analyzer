@@ -201,30 +201,7 @@ class VideoRepository:
             if not existing:
                 VideoRepository.create(data)
             else:
-                if 'title' in data:
-                    existing.title = data['title']
-                
-                db_is_short = existing.is_short or False
-                db_is_live = existing.is_live or False
-                db_live_status = existing.live_status or 'not_live'
-                db_duration = existing.duration or 0
-                
-                in_is_short = data.get('is_short', False)
-                in_is_live = data.get('is_live', False)
-                in_live_status = data.get('live_status', 'not_live')
-                in_duration = data.get('duration', 0)
-                
-                merged_is_live = db_is_live or in_is_live or (in_live_status in ['is_live', 'was_live', 'post_live'])
-                merged_is_short = (db_is_short or in_is_short) and not merged_is_live
-                merged_duration = in_duration or db_duration
-                
-                resolved_short, resolved_live, resolved_status = VideoRepository.resolve_classification(
-                    merged_is_short, merged_is_live, in_live_status, merged_duration
-                )
-                
-                existing.is_short = resolved_short
-                existing.is_live = resolved_live
-                existing.live_status = resolved_status
+                VideoRepository.update(existing, data)
         db.session.commit()
 
     @staticmethod
@@ -237,34 +214,7 @@ class VideoRepository:
                 VideoRepository.create(data)
                 inserted += 1
             else:
-                if 'title' in data:
-                    existing.title = data['title']
-                if 'duration' in data:
-                    existing.duration = data['duration']
-                if 'thumbnail_url' in data:
-                    existing.thumbnail_url = data['thumbnail_url']
-                
-                db_is_short = existing.is_short or False
-                db_is_live = existing.is_live or False
-                db_live_status = existing.live_status or 'not_live'
-                db_duration = existing.duration or 0
-                
-                in_is_short = data.get('is_short', False)
-                in_is_live = data.get('is_live', False)
-                in_live_status = data.get('live_status', 'not_live')
-                in_duration = data.get('duration', 0)
-                
-                merged_is_live = db_is_live or in_is_live or (in_live_status in ['is_live', 'was_live', 'post_live'])
-                merged_is_short = (db_is_short or in_is_short) and not merged_is_live
-                merged_duration = in_duration or db_duration
-                
-                resolved_short, resolved_live, resolved_status = VideoRepository.resolve_classification(
-                    merged_is_short, merged_is_live, in_live_status, merged_duration
-                )
-                
-                existing.is_short = resolved_short
-                existing.is_live = resolved_live
-                existing.live_status = resolved_status
+                VideoRepository.update(existing, data)
                 updated += 1
         db.session.commit()
         return inserted, updated

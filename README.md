@@ -135,3 +135,16 @@ You can deploy the entire stack to Render by importing this repository and using
 1. **Ephemeral File Storage**: Render's Web Services have ephemeral filesystems. Downloader assets (video/audio/thumbnails) stored in `downloads/` or `thumbnails/` will be removed when the service redeploys or restarts. To retain files across restarts, you should configure a **Render Persistent Disk** mounted at `/opt/render/project/src/backend/downloads` (size e.g. 10GB) or integrate an external cloud storage provider.
 2. **In-Memory Rate Limiting**: The application uses Flask-Limiter's in-memory rate-limiter. For clustered multi-instance deployments, a shared Redis server should be configured as the storage backend for Flask-Limiter.
 
+
+# step 1:
+PS E:\CODE\06_Data_Science\21_Youtube_Video_Analyzer> cd c:\Users\adity\bgutil-ytdlp-pot-provider\server
+PS C:\Users\adity\bgutil-ytdlp-pot-provider\server> node build/main.js
+
+# step 2:
+PS E:\CODE\06_Data_Science\21_Youtube_Video_Analyzer> cd .\backend\
+PS E:\CODE\06_Data_Science\21_Youtube_Video_Analyzer\backend> .\.venv\Scripts\Activate.ps1         
+(.venv) PS E:\CODE\06_Data_Science\21_Youtube_Video_Analyzer\backend> flask run
+
+# step 3:
+PS E:\CODE\06_Data_Science\21_Youtube_Video_Analyzer> cd .\frontend\
+PS E:\CODE\06_Data_Science\21_Youtube_Video_Analyzer\frontend> npm run dev

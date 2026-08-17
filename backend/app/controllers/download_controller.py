@@ -769,6 +769,8 @@ def handle_direct_download(video_id):
     ext = format_option
     if download_type == 'audio':
         ext = format_option if format_option in ['mp3', 'm4a', 'wav'] else 'mp3'
+    elif download_type == 'thumbnail':
+        ext = 'jpg'
     else:
         ext = 'mp4'
         
@@ -800,6 +802,87 @@ def handle_direct_download(video_id):
         temp_path = os.path.join(temp_dir, f"analyzer_download_{history.id}_{uuid.uuid4().hex}")
         outtmpl = f"{temp_path}.%(ext)s"
         
+        if download_type == 'thumbnail':
+            import requests
+            from urllib.parse import urlparse
+            
+            thumb_url = video.thumbnail_url if video else f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"
+            
+            # Determine extension
+            ext_val = 'jpg'
+            if thumb_url:
+                parsed_url = urlparse(thumb_url)
+                url_ext = os.path.splitext(parsed_url.path)[1]
+                if url_ext:
+                    ext_val = url_ext.lstrip('.')
+            if ext_val not in ['jpg', 'png', 'webp', 'jpeg']:
+                ext_val = 'jpg'
+                
+            filename_header = f"{safe_title}.{ext_val}"
+            downloaded_file = f"{temp_path}.{ext_val}"
+            
+            # Check local file
+            is_copied = False
+            if thumb_url and thumb_url.startswith('/thumbnails/'):
+                local_filename = thumb_url.replace('/thumbnails/', '')
+                thumbnail_dir = current_app.config.get('THUMBNAIL_DIR') or os.path.join(os.getcwd(), 'thumbnails')
+                local_path = os.path.join(thumbnail_dir, local_filename)
+                if os.path.exists(local_path):
+                    try:
+                        shutil.copy(local_path, downloaded_file)
+                        is_copied = True
+                        logger.info(f"[DirectDownload] Copied local thumbnail from {local_path} to {downloaded_file}")
+                    except Exception as copy_err:
+                        logger.warning(f"[DirectDownload] Failed to copy local thumbnail: {copy_err}")
+            
+            if not is_copied:
+                if not thumb_url or thumb_url.startswith('/thumbnails/'):
+                    thumb_url = f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"
+                
+                logger.info(f"[DirectDownload] Downloading remote thumbnail from {thumb_url} to {downloaded_file}")
+                res = requests.get(thumb_url, stream=True, timeout=15)
+                if res.status_code == 404 and 'maxresdefault' in thumb_url:
+                    thumb_url = f"https://img.youtube.com/vi/{video_id}/hqdefault.jpg"
+                    logger.info(f"[DirectDownload] maxresdefault not found. Retrying with hqdefault: {thumb_url}")
+                    res = requests.get(thumb_url, stream=True, timeout=15)
+                
+                res.raise_for_status()
+                with open(downloaded_file, 'wb') as f:
+                    shutil.copyfileobj(res.raw, f)
+            
+            file_size = os.path.getsize(downloaded_file)
+            
+            # Update history metadata to complete
+            history.status = 'complete'
+            history.file_size_bytes = file_size
+            history.progress_percent = 100
+            db.session.commit()
+            
+            logger.info(f"[DirectDownload] Thumbnail downloaded successfully. Size: {file_size}")
+            
+            # Determine proper MIME type
+            mime_map = {'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png', 'webp': 'image/webp'}
+            mime_type = mime_map.get(ext_val.lower(), 'image/jpeg')
+            
+            response = send_file(
+                downloaded_file,
+                mimetype=mime_type,
+                as_attachment=True,
+                download_name=filename_header
+            )
+            
+            temp_file_to_clean = downloaded_file
+            @response.call_on_close
+            def cleanup_temp_file():
+                if temp_file_to_clean and os.path.exists(temp_file_to_clean):
+                    try:
+                        os.remove(temp_file_to_clean)
+                        logger.info(f"[DirectDownload] cleanup completed: {temp_file_to_clean}")
+                    except Exception as cleanup_err:
+                        logger.warning(f"[DirectDownload] cleanup failed for {temp_file_to_clean}: {cleanup_err}")
+            
+            return response
+            
         ffmpeg_available = shutil.which('ffmpeg') is not None
         
         ydl_opts = {
