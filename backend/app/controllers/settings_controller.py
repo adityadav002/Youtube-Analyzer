@@ -98,7 +98,9 @@ def upload_cookies():
         if file.filename == '':
             return jsonify({'error': 'No selected file'}), 400
             
-        cookies_dir = os.path.join(os.getcwd(), 'config')
+        from flask import current_app
+        base_dir = os.path.dirname(current_app.root_path)
+        cookies_dir = os.path.join(base_dir, 'config')
         os.makedirs(cookies_dir, exist_ok=True)
         file_path = os.path.join(cookies_dir, 'cookies.txt')
         

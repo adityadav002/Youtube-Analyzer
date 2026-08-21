@@ -894,6 +894,18 @@ def handle_direct_download(video_id):
         
         from app.extraction.ytdlp_client import configure_ytdlp_options
         configure_ytdlp_options(ydl_opts, settings)
+        
+        cookie_path = ydl_opts.get('cookiefile') or (settings.cookies_file_path if settings else None)
+        cookie_exists = os.path.exists(cookie_path) if cookie_path else False
+        cookie_size = os.path.getsize(cookie_path) if cookie_exists else 0
+        cookies_passed_to_ytdlp = 'cookiefile' in ydl_opts or 'cookiesfrombrowser' in ydl_opts
+        
+        logger.info(
+            f"COOKIE_PATH: {cookie_path}\n"
+            f"COOKIE_EXISTS: {cookie_exists}\n"
+            f"COOKIE_SIZE: {cookie_size}\n"
+            f"COOKIES_PASSED_TO_YTDLP: {cookies_passed_to_ytdlp}"
+        )
             
         if rate_limit:
             parsed_limit = parse_rate_limit(rate_limit)
