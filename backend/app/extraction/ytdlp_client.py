@@ -45,7 +45,7 @@ def configure_ytdlp_options(ydl_opts: dict, settings=None) -> dict:
     logger.info("[YtdlpConfig] js runtime = node")
 
     # 2. Configure proxy if present
-    proxy = settings.ytdlp_proxy if settings else None
+    proxy = os.environ.get('YTDLP_PROXY') or (settings.ytdlp_proxy if settings else None)
     if proxy:
         ydl_opts['proxy'] = proxy
 
@@ -61,10 +61,25 @@ def configure_ytdlp_options(ydl_opts: dict, settings=None) -> dict:
     # 4. Configure cookies
     cookies_file = settings.cookies_file_path if settings else None
     ytdlp_cookies_env = os.environ.get('YTDLP_COOKIES_FILE') or os.environ.get('YTDLP_COOKIES_PATH')
-    cookie_target = (
-        ytdlp_cookies_env if (ytdlp_cookies_env and os.path.exists(ytdlp_cookies_env))
-        else (cookies_file if (cookies_file and os.path.exists(cookies_file)) else None)
-    )
+    render_secret_cookies = '/etc/secrets/cookies.txt'
+    
+    cookie_target = None
+    if ytdlp_cookies_env and os.path.exists(ytdlp_cookies_env):
+        cookie_target = ytdlp_cookies_env
+    elif os.path.exists(render_secret_cookies):
+        cookie_target = render_secret_cookies
+    elif cookies_file and os.path.exists(cookies_file):
+        cookie_target = cookies_file
+    elif os.environ.get('YTDLP_COOKIES_TEXT') or os.environ.get('YTDLP_COOKIES_CONTENT'):
+        raw_cookies = os.environ.get('YTDLP_COOKIES_TEXT') or os.environ.get('YTDLP_COOKIES_CONTENT')
+        import tempfile
+        temp_cookies = os.path.join(tempfile.gettempdir(), 'rendered_cookies.txt')
+        try:
+            with open(temp_cookies, 'w', encoding='utf-8') as f:
+                f.write(raw_cookies)
+            cookie_target = temp_cookies
+        except Exception as e:
+            logger.warning(f"[YtdlpConfig] Failed to write YTDLP_COOKIES_TEXT to tempfile: {e}")
     
     if cookie_target:
         ydl_opts['cookiefile'] = cookie_target
