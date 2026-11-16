@@ -9,8 +9,15 @@ logger = logging.getLogger(__name__)
 class SafeYoutubeDL(YoutubeDL):
     """
     Subclass of YoutubeDL that automatically falls back to downloading/extracting
-    without browser cookies if a cookie loading/decryption error occurs.
+    without browser cookies if a cookie loading/decryption error occurs,
+    and safely handles read-only cookie files.
     """
+    def save_cookies(self):
+        try:
+            super().save_cookies()
+        except (OSError, PermissionError) as e:
+            logger.warning(f"[SafeYoutubeDL] Unable to save cookies (read-only filesystem or permission denied): {e}")
+
     def extract_info(self, *args, **kwargs):
         try:
             return super().extract_info(*args, **kwargs)
@@ -28,8 +35,8 @@ class SafeYoutubeDL(YoutubeDL):
                 logger.warning(f"[SafeYoutubeDL] Cookie loading or decryption failed: {err_msg}. Retrying without browser cookies.")
                 self.params.pop('cookiesfrombrowser', None)
                 
-                # Instantiate a new YoutubeDL without browser cookies to execute the retry safely
-                with YoutubeDL(self.params) as ydl:
+                # Instantiate a new SafeYoutubeDL without browser cookies to execute the retry safely
+                with SafeYoutubeDL(self.params) as ydl:
                     return ydl.extract_info(*args, **kwargs)
             else:
                 raise
@@ -64,12 +71,28 @@ def configure_ytdlp_options(ydl_opts: dict, settings=None) -> dict:
     render_secret_cookies = '/etc/secrets/cookies.txt'
     
     cookie_target = None
+    source_cookie_file = None
     if ytdlp_cookies_env and os.path.exists(ytdlp_cookies_env):
-        cookie_target = ytdlp_cookies_env
+        source_cookie_file = ytdlp_cookies_env
     elif os.path.exists(render_secret_cookies):
-        cookie_target = render_secret_cookies
+        source_cookie_file = render_secret_cookies
     elif cookies_file and os.path.exists(cookies_file):
-        cookie_target = cookies_file
+        source_cookie_file = cookies_file
+
+    if source_cookie_file:
+        import shutil
+        import tempfile
+        # Render mounts Secret Files under /etc/secrets as read-only.
+        # yt-dlp attempts to write updated session cookies back to the cookie file.
+        # Copy to a writable temp file so yt-dlp can read and write freely.
+        temp_cookies = os.path.join(tempfile.gettempdir(), 'rendered_cookies.txt')
+        try:
+            shutil.copyfile(source_cookie_file, temp_cookies)
+            cookie_target = temp_cookies
+            logger.info(f"[YtdlpConfig] Copied cookies from {source_cookie_file} to writable temp {cookie_target}")
+        except Exception as e:
+            logger.warning(f"[YtdlpConfig] Failed to copy {source_cookie_file} to temp: {e}. Using source path.")
+            cookie_target = source_cookie_file
     elif os.environ.get('YTDLP_COOKIES_TEXT') or os.environ.get('YTDLP_COOKIES_CONTENT'):
         raw_cookies = os.environ.get('YTDLP_COOKIES_TEXT') or os.environ.get('YTDLP_COOKIES_CONTENT')
         import tempfile

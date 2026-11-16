@@ -46,5 +46,30 @@ class TestYtdlpConfigAndFallback(unittest.TestCase):
             self.assertEqual(res['id'], 'test_video')
             self.assertNotIn('cookiesfrombrowser', safe_ydl.params)
 
+    def test_safe_ytdlp_save_cookies_ignores_oserror(self):
+        from yt_dlp import YoutubeDL
+        safe_ydl = SafeYoutubeDL({'cookiefile': '/etc/secrets/cookies.txt'})
+        with patch.object(YoutubeDL, 'save_cookies') as mock_save:
+            mock_save.side_effect = OSError(30, "Read-only file system: '/etc/secrets/cookies.txt'")
+            # Should not raise an exception
+            safe_ydl.save_cookies()
+            mock_save.assert_called_once()
+
+    def test_configure_ytdlp_copies_cookie_file_to_temp(self):
+        import tempfile
+        with tempfile.NamedTemporaryFile(delete=False) as tf:
+            tf.write(b"# Netscape HTTP Cookie File\n")
+            test_cookie_path = tf.name
+
+        try:
+            with patch.dict(os.environ, {'YTDLP_COOKIES_FILE': test_cookie_path}):
+                opts = configure_ytdlp_options({})
+                self.assertIn('cookiefile', opts)
+                self.assertNotEqual(opts['cookiefile'], test_cookie_path)
+                self.assertTrue(os.path.exists(opts['cookiefile']))
+        finally:
+            if os.path.exists(test_cookie_path):
+                os.remove(test_cookie_path)
+
 if __name__ == '__main__':
     unittest.main()
