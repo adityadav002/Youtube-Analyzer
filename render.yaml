@@ -17,7 +17,7 @@ services:
       - key: USE_CELERY
         value: "false"
       - key: ENABLE_DOWNLOADS
-        value: "false"
+        value: "true"
       - key: ENABLE_LOCAL_FILE_OPEN
         value: "false"
       - key: RATELIMIT_STORAGE_URI
