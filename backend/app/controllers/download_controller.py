@@ -104,6 +104,8 @@ def start_download():
     download_type = data.get('download_type', 'video')  # video, audio, subtitle, thumbnail
     quality = data.get('quality', 'best')
     format_option = data.get('format', 'mp4')
+    if not format_option or str(format_option).lower() in ('undefined', 'null', 'none', ''):
+        format_option = 'mp4' if download_type == 'video' else ('mp3' if download_type == 'audio' else 'mp4')
     
     if download_type == 'subtitle':
         return jsonify({
@@ -769,6 +771,8 @@ def handle_direct_download(video_id):
     download_type = request.args.get('download_type', 'video')
     quality = request.args.get('quality', 'best')
     format_option = request.args.get('format', 'mp4')
+    if not format_option or str(format_option).lower() in ('undefined', 'null', 'none', ''):
+        format_option = 'mp4' if download_type == 'video' else ('mp3' if download_type == 'audio' else 'mp4')
     
     logger.info(f"[DirectDownload] video_id={video_id}")
     logger.info(f"[DirectDownload] quality={quality}")
@@ -948,7 +952,8 @@ def handle_direct_download(video_id):
             else:
                 ydl_opts['format'] = 'best'
                 
-            ydl_opts['merge_output_format'] = format_option
+            valid_video_formats = ['mp4', 'mkv', 'webm', 'mov']
+            ydl_opts['merge_output_format'] = format_option if format_option in valid_video_formats else 'mp4'
             
         elif download_type == 'audio':
             ydl_opts['format'] = 'bestaudio/best'

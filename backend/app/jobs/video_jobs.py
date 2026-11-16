@@ -344,6 +344,8 @@ def download_video_task(self, job_id: str, history_id: int):
     download_type = history.download_type
     quality = history.quality
     format_option = payload.get('format', 'mp4')
+    if not format_option or str(format_option).lower() in ('undefined', 'null', 'none', ''):
+        format_option = 'mp4' if download_type == 'video' else ('mp3' if download_type == 'audio' else 'mp4')
     
     download_dir = current_app.config.get('DOWNLOAD_DIR')
     if not download_dir:
@@ -413,7 +415,8 @@ def download_video_task(self, job_id: str, history_id: int):
             else:
                 ydl_opts['format'] = 'best'
                 
-            ydl_opts['merge_output_format'] = format_option
+            valid_video_formats = ['mp4', 'mkv', 'webm', 'mov']
+            ydl_opts['merge_output_format'] = format_option if format_option in valid_video_formats else 'mp4'
             
         elif download_type == 'audio':
             ydl_opts['format'] = 'bestaudio/best'

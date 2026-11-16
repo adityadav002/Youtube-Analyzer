@@ -758,7 +758,10 @@ export default function Downloader() {
                       {(item.status === 'failed' || item.status === 'cancelled') && (
                         <button
                           onClick={() => {
-                            const retryUrl = `${API_BASE_URL}/videos/${item.video_id}/download?quality=${item.quality}&format=${item.format}&download_type=${item.download_type}`;
+                            const retryFormat = (item.format && item.format !== 'undefined') ? item.format : (item.download_type === 'audio' ? 'mp3' : 'mp4');
+                            const retryQuality = (item.quality && item.quality !== 'undefined') ? item.quality : 'best';
+                            const retryType = (item.download_type && item.download_type !== 'undefined') ? item.download_type : 'video';
+                            const retryUrl = `${API_BASE_URL}/videos/${item.video_id}/download?quality=${retryQuality}&format=${retryFormat}&download_type=${retryType}`;
                             const a = document.createElement('a');
                             a.href = retryUrl;
                             a.style.display = 'none';
