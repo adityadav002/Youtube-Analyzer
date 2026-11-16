@@ -115,9 +115,9 @@ def configure_ytdlp_options(ydl_opts: dict, settings=None) -> dict:
         logger.info("[YtdlpConfig] Cookies: disabled / none configured")
 
     # 5. Extractor args for player clients
-    client_name = settings.ytdlp_player_client if settings else 'android'
-    if not client_name or client_name in ('ios', 'default'):
-        client_name = 'android'
+    has_cookies = bool(ydl_opts.get('cookiefile') or ydl_opts.get('cookiesfrombrowser'))
+    env_client = os.environ.get('YTDLP_PLAYER_CLIENT')
+    client_name = env_client if env_client else (settings.ytdlp_player_client if settings else None)
 
     # Ensure extractor_args dict exists
     ydl_opts.setdefault('extractor_args', {})
@@ -126,14 +126,25 @@ def configure_ytdlp_options(ydl_opts: dict, settings=None) -> dict:
     # 6. PO Token Provider URL Configuration
     pot_provider_url = os.environ.get('POT_PROVIDER_URL') or os.environ.get('BGUTIL_POT_PROVIDER_URL')
     if pot_provider_url:
+        chosen_client = client_name if client_name and client_name not in ('ios', 'default') else 'android'
         ydl_opts['extractor_args']['youtubepot-bgutilhttp'] = {
             'base_url': [pot_provider_url]
         }
-        ydl_opts['extractor_args']['youtube']['player_client'] = [client_name, 'web', 'default']
+        ydl_opts['extractor_args']['youtube']['player_client'] = [chosen_client, 'web', 'default']
         logger.info("[YtdlpConfig] PO provider = enabled")
+    elif has_cookies:
+        # Android and iOS do NOT support cookies in yt-dlp (yt-dlp skips them when cookies are provided).
+        # When cookies are configured, use yt-dlp's authenticated default clients ('tv_downgraded', 'web_safari')
+        # plus 'web' so player response extraction succeeds.
+        if client_name and client_name not in ('android', 'ios', 'default'):
+            ydl_opts['extractor_args']['youtube']['player_client'] = [client_name, 'default', 'web']
+        else:
+            ydl_opts['extractor_args']['youtube']['player_client'] = ['default', 'web']
+        logger.info("[YtdlpConfig] Cookies configured: using authenticated player clients ['default', 'web']")
     else:
-        ydl_opts['extractor_args']['youtube']['player_client'] = [client_name]
-        logger.info("[YtdlpConfig] PO provider = disabled")
+        chosen_client = client_name if client_name and client_name not in ('ios', 'default') else 'android'
+        ydl_opts['extractor_args']['youtube']['player_client'] = [chosen_client]
+        logger.info(f"[YtdlpConfig] PO provider = disabled, player_client = {chosen_client}")
 
     return ydl_opts
 

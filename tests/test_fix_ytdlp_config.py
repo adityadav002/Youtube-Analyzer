@@ -71,5 +71,11 @@ class TestYtdlpConfigAndFallback(unittest.TestCase):
             if os.path.exists(test_cookie_path):
                 os.remove(test_cookie_path)
 
+    def test_configure_ytdlp_options_with_cookies_uses_authenticated_clients(self):
+        opts = configure_ytdlp_options({'cookiefile': '/tmp/cookies.txt'})
+        clients = opts['extractor_args']['youtube']['player_client']
+        self.assertIn('default', clients)
+        self.assertNotIn('android', clients)
+
 if __name__ == '__main__':
     unittest.main()
