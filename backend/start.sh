@@ -13,3 +13,4 @@ flask db upgrade
 # Start Gunicorn WSGI server
 echo "Starting Gunicorn on port $PORT..."
 exec gunicorn --timeout 90 --workers 1 --threads 4 --bind 0.0.0.0:${PORT:-5000} wsgi:app
+
