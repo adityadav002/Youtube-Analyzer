@@ -1,5 +1,13 @@
 from flask import Blueprint, request, jsonify
+from app import limiter
 from app.services.search_service import SearchService
+from app.services.youtube_api_service import (
+    YouTubeAPIError, 
+    YouTubeQuotaExceededError, 
+    YouTubeConfigError, 
+    YouTubeNetworkError, 
+    YouTubeTimeoutError
+)
 from app.extraction.ytdlp_client import YtdlpError, YtdlpRateLimitError
 from sqlalchemy.exc import SQLAlchemyError
 import logging
@@ -15,6 +23,7 @@ def parse_boolean(val):
     return val_lower in ['true', '1', 't', 'y', 'yes']
 
 @search_bp.route('/youtube', methods=['GET'])
+@limiter.limit("30 per minute")
 def search_youtube():
     q = request.args.get('q')
     if not q:
@@ -38,6 +47,37 @@ def search_youtube():
             refresh=refresh
         )
         return jsonify(results)
+    except YouTubeQuotaExceededError as e:
+        logger.warning(f"YouTube Data API quota exceeded during search for query '{q}': {e}")
+        return jsonify({
+            'error': "YouTube API quota exceeded",
+            'message': str(e)
+        }), 503
+    except YouTubeConfigError as e:
+        logger.error(f"YouTube API configuration error during search: {e}")
+        return jsonify({
+            'error': "YouTube API configuration error",
+            'message': str(e)
+        }), 503
+    except YouTubeTimeoutError as e:
+        logger.error(f"YouTube API timeout during search for query '{q}': {e}")
+        return jsonify({
+            'error': "YouTube API timeout",
+            'message': str(e)
+        }), 504
+    except YouTubeNetworkError as e:
+        logger.error(f"YouTube API network error during search for query '{q}': {e}")
+        return jsonify({
+            'error': "YouTube API network error",
+            'message': str(e)
+        }), 502
+    except YouTubeAPIError as e:
+        logger.error(f"YouTube API error during search for query '{q}': {e}")
+        status = getattr(e, 'status_code', 502)
+        return jsonify({
+            'error': "YouTube API error",
+            'message': str(e)
+        }), status
     except YtdlpRateLimitError as e:
         logger.warning(f"YouTube search rate limit or bot detection for query '{q}': {str(e)}")
         return jsonify({

@@ -5,27 +5,35 @@ from app.models.history import SearchHistory
 
 class SearchRepository:
     @staticmethod
+    def normalize_query(query: str) -> str:
+        if not query:
+            return ""
+        return " ".join(query.strip().split()).lower()
+
+    @staticmethod
     def get_cached_query(query: str, search_type: str) -> Optional[SearchHistory]:
         """
-        Retrieves a cached search query if it exists.
+        Retrieves a cached search query if it exists, using normalized query key.
         """
+        norm = SearchRepository.normalize_query(query)
         return db.session.query(SearchHistory).filter(
-            SearchHistory.query == query,
+            SearchHistory.query == norm,
             SearchHistory.search_type == search_type
         ).first()
 
     @staticmethod
-    def save_query_cache(query: str, search_type: str, result_count: int, results: list, ttl_hours: int = 1) -> SearchHistory:
+    def save_query_cache(query: str, search_type: str, result_count: int, results: list, ttl_hours: int = 24) -> SearchHistory:
         """
-        Saves or updates a search query in the cache with the given TTL.
+        Saves or updates a search query in the cache with normalized query key and given TTL.
         """
         import json
+        norm = SearchRepository.normalize_query(query)
         now = datetime.utcnow()
         expires = now + timedelta(hours=ttl_hours)
         
         # Check if record exists
         record = db.session.query(SearchHistory).filter(
-            SearchHistory.query == query,
+            SearchHistory.query == norm,
             SearchHistory.search_type == search_type
         ).first()
         
@@ -36,7 +44,7 @@ class SearchRepository:
             record.updated_at = now
         else:
             record = SearchHistory(
-                query=query,
+                query=norm,
                 search_type=search_type,
                 result_count=result_count,
                 results_json=json.dumps(results),

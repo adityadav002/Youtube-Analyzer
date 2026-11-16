@@ -86,7 +86,14 @@ class SearchService:
         
         # Save search results to cache
         try:
-            SearchRepository.save_query_cache(query_truncated, search_type, len(results), results)
+            from flask import current_app
+            ttl_hours = 24
+            try:
+                if current_app:
+                    ttl_hours = current_app.config.get('SEARCH_CACHE_TTL_HOURS', 24)
+            except Exception:
+                pass
+            SearchRepository.save_query_cache(query_truncated, search_type, len(results), results, ttl_hours=ttl_hours)
         except Exception as db_err:
             logger.error(f"Database error during search cache save for query '{query_truncated}': {db_err}")
             raise

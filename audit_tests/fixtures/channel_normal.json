@@ -1,0 +1,41 @@
+{
+  "kind": "youtube#channelListResponse",
+  "items": [
+    {
+      "kind": "youtube#channel",
+      "id": "UC_x5XG1OV2P6uZZ5FSM9Ttw",
+      "snippet": {
+        "title": "Google Developers",
+        "description": "The Google Developers channel features talks and tutorials from Google developers.",
+        "customUrl": "@googledevelopers",
+        "publishedAt": "2007-08-23T00:34:43Z",
+        "thumbnails": {
+          "default": {
+            "url": "https://yt3.ggpht.com/default.jpg"
+          },
+          "high": {
+            "url": "https://yt3.ggpht.com/high.jpg"
+          }
+        },
+        "country": "US"
+      },
+      "contentDetails": {
+        "relatedPlaylists": {
+          "likes": "",
+          "uploads": "UU_x5XG1OV2P6uZZ5FSM9Ttw"
+        }
+      },
+      "statistics": {
+        "viewCount": "215000000",
+        "subscriberCount": "2350000",
+        "hiddenSubscriberCount": false,
+        "videoCount": "6200"
+      },
+      "brandingSettings": {
+        "image": {
+          "bannerExternalUrl": "https://yt3.ggpht.com/banner"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "kind": "youtube#videoListResponse",
+  "items": [
+    {
+      "kind": "youtube#video",
+      "id": "shortsVid001",
+      "snippet": {
+        "publishedAt": "2026-08-01T14:20:00Z",
+        "channelId": "UCShortsCreator12345678",
+        "title": "Crazy Coding Hack! #shorts #viral",
+        "description": "Watch until the end! #shorts",
+        "thumbnails": {
+          "high": {
+            "url": "https://i.ytimg.com/vi/shortsVid001/hqdefault.jpg"
+          }
+        },
+        "channelTitle": "Code Ninja",
+        "tags": [
+          "coding",
+          "shorts",
+          "python"
+        ],
+        "categoryId": "28"
+      },
+      "contentDetails": {
+        "duration": "PT42S",
+        "caption": "true"
+      },
+      "status": {
+        "privacyStatus": "public"
+      },
+      "statistics": {
+        "viewCount": "450000",
+        "likeCount": "32000",
+        "commentCount": "512"
+      }
+    }
+  ]
+}

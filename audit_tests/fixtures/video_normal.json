@@ -1,0 +1,72 @@
+{
+  "kind": "youtube#videoListResponse",
+  "etag": "etag_normal_123",
+  "items": [
+    {
+      "kind": "youtube#video",
+      "etag": "etag_item_123",
+      "id": "dQw4w9WgXcQ",
+      "snippet": {
+        "publishedAt": "2009-10-25T06:57:33Z",
+        "channelId": "UCuAXFkgsw1L7xaCfnd5JJOw",
+        "title": "Rick Astley - Never Gonna Give You Up (Official Music Video)",
+        "description": "The official video for “Never Gonna Give You Up” by Rick Astley.\n\nChapters:\n00:00 - Introduction\n00:43 - Verse 1\n01:10 - Chorus\n02:20 - Bridge\n03:15 - Outro",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/default.jpg",
+            "width": 120,
+            "height": 90
+          },
+          "medium": {
+            "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/mqdefault.jpg",
+            "width": 320,
+            "height": 180
+          },
+          "high": {
+            "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+            "width": 480,
+            "height": 360
+          },
+          "maxres": {
+            "url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg",
+            "width": 1280,
+            "height": 720
+          }
+        },
+        "channelTitle": "Rick Astley",
+        "tags": [
+          "rick astley",
+          "never gonna give you up",
+          "nggyu",
+          "pop"
+        ],
+        "categoryId": "10",
+        "liveBroadcastContent": "none"
+      },
+      "contentDetails": {
+        "duration": "PT3M33S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "true",
+        "licensedContent": true
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "public",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": true
+      },
+      "statistics": {
+        "viewCount": "1500000000",
+        "likeCount": "17000000",
+        "favoriteCount": "0",
+        "commentCount": "2500000"
+      }
+    }
+  ],
+  "pageInfo": {
+    "totalResults": 1,
+    "resultsPerPage": 1
+  }
+}

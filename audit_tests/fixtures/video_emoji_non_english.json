@@ -1,0 +1,41 @@
+{
+  "kind": "youtube#videoListResponse",
+  "items": [
+    {
+      "kind": "youtube#video",
+      "id": "unicodeVid01",
+      "snippet": {
+        "publishedAt": "2026-06-15T18:00:00Z",
+        "channelId": "UCGlobalCreator12345678",
+        "title": "🔥🚀 मशीन लर्निंग सीखें! AI Explained in Hindi & English (हिंदी) - 日本語字幕付き 🎉",
+        "description": "नमस्ते दोस्तों! आज हम AI और Deep Learning सीखेंगे।\n\n00:00 - परिचय (Intro) 🎬\n05:30 - न्यूरल नेटवर्क (Neural Networks) 🧠\n15:45 - निष्कर्ष (Conclusion) ✨",
+        "thumbnails": {
+          "high": {
+            "url": "https://i.ytimg.com/vi/unicodeVid01/hqdefault.jpg"
+          }
+        },
+        "channelTitle": "Global Tech हिन्दी",
+        "tags": [
+          "AI",
+          "मशीन लर्निंग",
+          "Python",
+          "हिंदी",
+          "Tech"
+        ],
+        "categoryId": "28"
+      },
+      "contentDetails": {
+        "duration": "PT22M15S",
+        "caption": "true"
+      },
+      "status": {
+        "privacyStatus": "public"
+      },
+      "statistics": {
+        "viewCount": "125000",
+        "likeCount": "9800",
+        "commentCount": "1420"
+      }
+    }
+  ]
+}

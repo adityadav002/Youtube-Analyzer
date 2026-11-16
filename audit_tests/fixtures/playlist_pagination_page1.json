@@ -1,0 +1,260 @@
+{
+  "kind": "youtube#playlistItemListResponse",
+  "nextPageToken": "CAUQAA",
+  "items": [
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_001"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_002"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_003"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_004"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_005"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_006"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_007"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_008"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_009"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_010"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_011"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_012"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_013"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_014"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_015"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_016"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_017"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_018"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_019"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_020"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_021"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_022"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_023"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_024"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_025"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_026"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_027"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_028"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_029"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_030"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_031"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_032"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_033"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_034"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_035"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_036"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_037"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_038"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_039"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_040"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_041"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_042"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_043"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_044"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_045"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_046"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_047"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_048"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_049"
+      }
+    },
+    {
+      "contentDetails": {
+        "videoId": "vid_page1_050"
+      }
+    }
+  ],
+  "pageInfo": {
+    "totalResults": 75,
+    "resultsPerPage": 50
+  }
+}

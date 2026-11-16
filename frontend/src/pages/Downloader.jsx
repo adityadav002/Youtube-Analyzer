@@ -116,15 +116,17 @@ export default function Downloader() {
       notify({ type: 'success', title: 'Download Queued', message: 'Your stream will start downloading shortly.' });
       queryClient.invalidateQueries({ queryKey: ['downloads'] });
 
-      // Automatically trigger browser download using an invisible iframe
+      // Automatically trigger browser download using a temporary hidden anchor tag
       if (data && data.history_id) {
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = `${API_BASE_URL}/downloads/${data.history_id}/file`;
-        document.body.appendChild(iframe);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = `${API_BASE_URL}/downloads/${data.history_id}/file`;
+        a.setAttribute('download', '');
+        document.body.appendChild(a);
+        a.click();
         setTimeout(() => {
-          document.body.removeChild(iframe);
-        }, 10000);
+          document.body.removeChild(a);
+        }, 1000);
       }
     },
     onError: (err) => {
@@ -640,7 +642,6 @@ export default function Downloader() {
                 <option value="all">All Types</option>
                 <option value="video">Video</option>
                 <option value="audio">Audio</option>
-                <option value="subtitle">Subtitles</option>
                 <option value="thumbnail">Thumbnail</option>
               </select>
             </div>

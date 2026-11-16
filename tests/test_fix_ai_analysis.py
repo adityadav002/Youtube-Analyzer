@@ -1,0 +1,113 @@
+import os
+import sys
+import json
+import unittest
+from unittest.mock import patch, MagicMock
+
+sys.path.insert(0, os.path.abspath('backend'))
+
+from app import create_app, db
+from app.models.video import Video
+from app.models.ai import AIAnalysis
+from app.models.transcript import Transcript
+from app.services.ai_service import AIAnalysisService, AIAnalysisError
+
+class TestAIAnalysisPipeline(unittest.TestCase):
+    def setUp(self):
+        self.app = create_app('testing')
+        self.client = self.app.test_client()
+        self.app_context = self.app.app_context()
+        self.app_context.push()
+        db.create_all()
+
+    def tearDown(self):
+        db.session.remove()
+        db.drop_all()
+        self.app_context.pop()
+
+    def test_ai_status_endpoint(self):
+        with patch.dict(os.environ, {'GEMINI_API_KEY': 'test_key', 'AI_PROVIDER': 'gemini'}):
+            res = self.client.get('/api/ai/status')
+            self.assertEqual(res.status_code, 200)
+            data = res.get_json()
+            self.assertTrue(data['enabled'])
+            self.assertEqual(data['provider'], 'gemini')
+
+    def test_ai_analyze_fails_without_api_key(self):
+        v = Video(id="vid_ai_01", title="AI Test", channel_id="UC123")
+        db.session.add(v)
+        db.session.commit()
+
+        with patch.dict(os.environ, {}, clear=True):
+            res = self.client.post('/api/ai/analyze/vid_ai_01')
+            self.assertEqual(res.status_code, 503)
+            self.assertIn("key", res.get_json().get('message', '').lower())
+
+    def test_ai_analyze_and_store_pipeline(self):
+        v = Video(id="vid_ai_02", title="Machine Learning 101", channel_id="UC123", description="A great tutorial")
+        db.session.add(v)
+        
+        t = Transcript(
+            video_id="vid_ai_02",
+            language_code="en",
+            full_text="Machine learning is fascinating and empowers modern applications."
+        )
+        t.segments = [{'start': 0.0, 'duration': 5.0, 'text': 'Machine learning is fascinating'}]
+        db.session.add(t)
+        db.session.commit()
+
+        mock_gemini_payload = {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {
+                                "text": json.dumps({
+                                    "summary": "This video covers core principles of machine learning.",
+                                    "topics": [
+                                        {"topic": "Machine Learning", "description": "Overview of models and applications"}
+                                    ],
+                                    "key_takeaways": [
+                                        "Foundations of algorithms",
+                                        "Modern AI landscape"
+                                    ],
+                                    "sentiment": {
+                                        "overall": "positive",
+                                        "score": 0.9,
+                                        "summary": "Audience reception is overwhelmingly supportive.",
+                                        "positive_pct": 85,
+                                        "neutral_pct": 10,
+                                        "negative_pct": 5
+                                    }
+                                })
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = mock_gemini_payload
+
+        with patch.dict(os.environ, {'GEMINI_API_KEY': 'test_gemini_key'}):
+            with patch('requests.post', return_value=mock_resp):
+                res = self.client.post('/api/ai/analyze/vid_ai_02')
+                self.assertEqual(res.status_code, 200)
+                data = res.get_json()
+                self.assertEqual(data['video_id'], 'vid_ai_02')
+                self.assertIn('summary', data['result'])
+                self.assertEqual(data['result']['sentiment']['overall'], 'positive')
+
+                # Verify database record
+                db_record = db.session.query(AIAnalysis).filter(AIAnalysis.video_id == 'vid_ai_02').first()
+                self.assertIsNotNone(db_record)
+                self.assertEqual(db_record.result['sentiment']['score'], 0.9)
+
+                # Verify GET endpoint retrieves stored analysis
+                get_res = self.client.get('/api/ai/analysis/vid_ai_02')
+                self.assertEqual(get_res.status_code, 200)
+                get_data = get_res.get_json()
+                self.assertEqual(get_data['result']['summary'], "This video covers core principles of machine learning.")
+

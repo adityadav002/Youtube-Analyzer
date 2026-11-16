@@ -25,7 +25,31 @@ YOUTUBE_CATEGORIES = {
 }
 
 class YouTubeAPIError(Exception):
-    pass
+    def __init__(self, message="YouTube API Error", status_code=500, reason=None):
+        super().__init__(message)
+        self.message = message
+        self.status_code = status_code
+        self.reason = reason
+
+class YouTubeQuotaExceededError(YouTubeAPIError):
+    def __init__(self, message="YouTube Data API daily quota exceeded."):
+        super().__init__(message, status_code=503, reason='quotaExceeded')
+
+class YouTubeConfigError(YouTubeAPIError):
+    def __init__(self, message="YouTube API key configuration is missing or invalid."):
+        super().__init__(message, status_code=503, reason='keyInvalid')
+
+class YouTubeNotFoundError(YouTubeAPIError):
+    def __init__(self, message="YouTube resource not found."):
+        super().__init__(message, status_code=404, reason='notFound')
+
+class YouTubeNetworkError(YouTubeAPIError):
+    def __init__(self, message="Unable to connect to YouTube Data API due to network error."):
+        super().__init__(message, status_code=502, reason='networkError')
+
+class YouTubeTimeoutError(YouTubeAPIError):
+    def __init__(self, message="YouTube Data API request timed out."):
+        super().__init__(message, status_code=504, reason='timeout')
 
 def parse_chapters_from_description(description: str, duration: int) -> list:
     if not description:
@@ -91,7 +115,7 @@ class YouTubeApiService:
     def __init__(self):
         self.api_key = os.environ.get('YOUTUBE_API_KEY')
         if not self.api_key:
-            raise YouTubeAPIError("YouTube API key configuration is missing. Please set YOUTUBE_API_KEY in your environment.")
+            raise YouTubeConfigError("YouTube API key configuration is missing. Please set YOUTUBE_API_KEY in your environment.")
         self.base_url = "https://www.googleapis.com/youtube/v3"
 
     def _get(self, endpoint: str, params: dict) -> dict:
@@ -105,9 +129,12 @@ class YouTubeApiService:
         
         try:
             resp = requests.get(url, params=params, timeout=15)
+        except requests.exceptions.Timeout as e:
+            logger.error(f"Timeout connecting to YouTube API: {e}")
+            raise YouTubeTimeoutError("YouTube Data API request timed out.") from e
         except requests.exceptions.RequestException as e:
             logger.error(f"Network error connecting to YouTube API: {e}")
-            raise YouTubeAPIError("Unable to connect to YouTube Data API due to network error.") from e
+            raise YouTubeNetworkError("Unable to connect to YouTube Data API due to network error.") from e
             
         if resp.status_code == 200:
             return resp.json()
@@ -126,17 +153,17 @@ class YouTubeApiService:
         logger.error(f"YouTube API error: HTTP {resp.status_code} - {msg} (Reason: {reason})")
         
         if resp.status_code == 403:
-            if reason == 'quotaExceeded':
-                raise YouTubeAPIError("YouTube Data API quota exceeded.")
-            raise YouTubeAPIError(f"YouTube API returned HTTP 403: {msg}")
+            if reason in ('quotaExceeded', 'dailyLimitExceeded', 'rateLimitExceeded'):
+                raise YouTubeQuotaExceededError("YouTube Data API daily quota exceeded.")
+            raise YouTubeAPIError(f"YouTube API access forbidden: {msg}", status_code=403, reason=reason)
         elif resp.status_code == 400:
-            if reason == 'keyInvalid':
-                raise YouTubeAPIError("Invalid YouTube API key.")
-            raise YouTubeAPIError(f"YouTube API returned HTTP 400: {msg}")
+            if reason in ('keyInvalid', 'badRequest'):
+                raise YouTubeConfigError(f"Invalid YouTube API key or parameters: {msg}")
+            raise YouTubeAPIError(f"YouTube API returned HTTP 400: {msg}", status_code=400, reason=reason)
         elif resp.status_code == 404:
-            raise YouTubeAPIError("YouTube resource not found.")
+            raise YouTubeNotFoundError("YouTube resource not found.")
         else:
-            raise YouTubeAPIError(f"YouTube API returned HTTP {resp.status_code}: {msg}")
+            raise YouTubeAPIError(f"YouTube API returned HTTP {resp.status_code}: {msg}", status_code=resp.status_code, reason=reason)
 
     def parse_iso8601_duration(self, duration_str: str) -> int:
         if not duration_str:
@@ -266,6 +293,7 @@ class YouTubeApiService:
         normal_videos = []
         shorts_videos = []
         live_videos = []
+        fallback_pool = []
 
         if limit == 50:
             target_normal = 30
@@ -277,7 +305,10 @@ class YouTubeApiService:
             target_live = max(1, int(limit * 0.2)) if limit >= 5 else 0
             target_normal = limit - target_shorts - target_live
 
-        logger.info(f"[Crawler] Target: {target_normal} normal, {target_shorts} shorts, {target_live} live")
+        # Hard cap on pages to protect YouTube API quota
+        max_pages = max(3, (limit + 49) // 50 + 2)
+
+        logger.info(f"[Crawler] Target: {target_normal} normal, {target_shorts} shorts, {target_live} live (max_pages={max_pages})")
 
         next_page_token = None
         current_index = 0
@@ -453,12 +484,18 @@ class YouTubeApiService:
                 if resolved_live:
                     if len(live_videos) < target_live:
                         live_videos.append(video_record)
+                    else:
+                        fallback_pool.append(video_record)
                 elif resolved_short:
                     if len(shorts_videos) < target_shorts:
                         shorts_videos.append(video_record)
+                    else:
+                        fallback_pool.append(video_record)
                 else:
                     if len(normal_videos) < target_normal:
                         normal_videos.append(video_record)
+                    else:
+                        fallback_pool.append(video_record)
 
             logger.info(f"[Crawler] Classified: {num_normal} normal, {num_shorts} shorts, {num_live} live")
             logger.info(
@@ -472,7 +509,11 @@ class YouTubeApiService:
             if (len(normal_videos) >= target_normal and 
                 len(shorts_videos) >= target_shorts and 
                 len(live_videos) >= target_live):
-                logger.info("[Crawler] Target reached")
+                logger.info("[Crawler] Target reached for all buckets")
+                break
+
+            if page_num >= max_pages:
+                logger.info(f"[Crawler] Hard page cap ({max_pages}) reached. Stopping pagination to protect quota.")
                 break
 
             if stop_crawl or not res.get('nextPageToken'):
@@ -483,6 +524,20 @@ class YouTubeApiService:
 
         # Combine all selected videos
         videos_data = normal_videos + shorts_videos + live_videos
+
+        # If any bucket was under-filled (e.g. channel has 0 live streams), fill remaining slots from fallback pool
+        needed = limit - len(videos_data)
+        if needed > 0 and fallback_pool:
+            fill_items = fallback_pool[:needed]
+            for item in fill_items:
+                if item.get('is_live'):
+                    live_videos.append(item)
+                elif item.get('is_short'):
+                    shorts_videos.append(item)
+                else:
+                    normal_videos.append(item)
+            videos_data = normal_videos + shorts_videos + live_videos
+            logger.info(f"[Crawler] Filled {len(fill_items)} under-allocated slots from available video fallback pool.")
         
         # Save to database
         inserted, updated = VideoRepository.bulk_create_stubs_tracked(videos_data)
@@ -747,3 +802,203 @@ class YouTubeApiService:
                 })
                 
         return results
+
+    def fetch_video_transcript(self, video_id: str, languages: list = None) -> dict:
+        """
+        Fetches transcript for video using youtube-transcript-api.
+        Returns dict with keys: video_id, language_code, is_generated, full_text, segments,
+        or None if no transcript is available.
+        """
+        from app.utils.youtube_url import parse_youtube_video_id
+        canonical_id = parse_youtube_video_id(video_id) or video_id
+        if not canonical_id:
+            return None
+
+        from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound, CouldNotRetrieveTranscript
+        if languages is None:
+            languages = ['en', 'en-US', 'en-GB']
+
+        try:
+            transcript_list = YouTubeTranscriptApi.list_transcripts(canonical_id)
+            transcript = None
+            is_generated = False
+            lang_code = 'en'
+
+            try:
+                transcript = transcript_list.find_manually_created_transcript(languages)
+                is_generated = False
+                lang_code = transcript.language_code
+            except Exception:
+                try:
+                    transcript = transcript_list.find_generated_transcript(languages)
+                    is_generated = True
+                    lang_code = transcript.language_code
+                except Exception:
+                    for t in transcript_list:
+                        transcript = t
+                        is_generated = t.is_generated
+                        lang_code = t.language_code
+                        break
+
+            if not transcript:
+                logger.info(f"No transcript found for video {canonical_id}")
+                return None
+
+            raw_segments = transcript.fetch()
+            segments = []
+            text_parts = []
+            for s in raw_segments:
+                seg_text = s.get('text', '').strip()
+                if seg_text:
+                    segments.append({
+                        'start': round(float(s.get('start', 0)), 2),
+                        'duration': round(float(s.get('duration', 0)), 2),
+                        'text': seg_text
+                    })
+                    text_parts.append(seg_text)
+
+            full_text = " ".join(text_parts)
+            return {
+                'video_id': canonical_id,
+                'language_code': lang_code,
+                'is_generated': is_generated,
+                'full_text': full_text,
+                'segments': segments
+            }
+        except (TranscriptsDisabled, NoTranscriptFound, CouldNotRetrieveTranscript) as te:
+            logger.info(f"Transcript unavailable for video {canonical_id}: {te}")
+            return None
+        except Exception as e:
+            logger.warning(f"Unexpected error fetching transcript for video {canonical_id}: {e}")
+            return None
+
+    def save_video_transcript(self, transcript_data: dict):
+        if not transcript_data:
+            return None
+        from app import db
+        from app.models.transcript import Transcript
+        from app.models.video import Video
+
+        vid = transcript_data['video_id']
+        existing = db.session.query(Transcript).filter(Transcript.video_id == vid).first()
+        if existing:
+            existing.language_code = transcript_data.get('language_code', 'en')
+            existing.is_generated = transcript_data.get('is_generated', False)
+            existing.full_text = transcript_data.get('full_text', '')
+            existing.segments = transcript_data.get('segments', [])
+            record = existing
+        else:
+            record = Transcript(
+                video_id=vid,
+                language_code=transcript_data.get('language_code', 'en'),
+                is_generated=transcript_data.get('is_generated', False),
+                full_text=transcript_data.get('full_text', '')
+            )
+            record.segments = transcript_data.get('segments', [])
+            db.session.add(record)
+
+        video = db.session.query(Video).filter(Video.id == vid).first()
+        if video:
+            video.has_transcript = True
+
+        db.session.commit()
+        return record
+
+    def fetch_video_comments(self, video_id: str, max_results: int = 50) -> list:
+        """
+        Fetches top-level comments for video using YouTube Data API commentThreads.list.
+        Returns list of parsed comment dicts.
+        """
+        from app.utils.youtube_url import parse_youtube_video_id
+        canonical_id = parse_youtube_video_id(video_id) or video_id
+        if not canonical_id:
+            return []
+
+        params = {
+            'part': 'snippet',
+            'videoId': canonical_id,
+            'maxResults': min(max_results, 100),
+            'textFormat': 'plainText',
+            'order': 'relevance'
+        }
+
+        try:
+            res = self._get('commentThreads', params)
+        except YouTubeAPIError as e:
+            logger.info(f"Comments unavailable or error for video {canonical_id}: {e}")
+            return []
+
+        items = res.get('items', [])
+        comments = []
+        for item in items:
+            c_snippet = item.get('snippet', {}).get('topLevelComment', {}).get('snippet', {})
+            cid = item.get('id')
+            if not cid or not c_snippet:
+                continue
+
+            pub_at_str = c_snippet.get('publishedAt')
+            published_at = self.parse_iso8601_date(pub_at_str) or datetime.utcnow()
+
+            comments.append({
+                'id': cid,
+                'video_id': canonical_id,
+                'parent_id': None,
+                'author_name': c_snippet.get('authorDisplayName', 'Anonymous'),
+                'author_id': c_snippet.get('authorChannelId', {}).get('value'),
+                'author_thumbnail': c_snippet.get('authorProfileImageUrl'),
+                'text': c_snippet.get('textDisplay', ''),
+                'like_count': int(c_snippet.get('likeCount') or 0),
+                'published_at': published_at,
+                'is_favorited': False,
+                'is_pinned': False,
+                'author_is_creator': False
+            })
+
+        return comments
+
+    def save_video_comments(self, comments_data: list):
+        if not comments_data:
+            return []
+        from app import db
+        from app.models.comment import Comment
+
+        saved_records = []
+        for c in comments_data:
+            existing = db.session.query(Comment).filter(Comment.id == c['id']).first()
+            if existing:
+                existing.text = c.get('text', existing.text)
+                existing.like_count = c.get('like_count', existing.like_count)
+                saved_records.append(existing)
+            else:
+                record = Comment(
+                    id=c['id'],
+                    video_id=c['video_id'],
+                    parent_id=c.get('parent_id'),
+                    author_name=c['author_name'],
+                    author_id=c.get('author_id'),
+                    author_thumbnail=c.get('author_thumbnail'),
+                    text=c['text'],
+                    like_count=c.get('like_count', 0),
+                    published_at=c.get('published_at', datetime.utcnow()),
+                    is_favorited=c.get('is_favorited', False),
+                    is_pinned=c.get('is_pinned', False),
+                    author_is_creator=c.get('author_is_creator', False)
+                )
+                db.session.add(record)
+                saved_records.append(record)
+
+        db.session.commit()
+        return saved_records
+
+    @staticmethod
+    def calculate_engagement_rate(like_count: int, comment_count: int, view_count: int) -> float:
+        """
+        Calculates engagement rate percentage: (likes + comments) / views * 100.
+        Returns 0.0 if view_count is 0 or None.
+        """
+        if not view_count or view_count <= 0:
+            return 0.0
+        likes = like_count or 0
+        comments = comment_count or 0
+        rate = ((likes + comments) / view_count) * 100.0
+        return round(rate, 2)

@@ -1,0 +1,39 @@
+{
+  "kind": "youtube#videoListResponse",
+  "etag": "etag_hidden_likes",
+  "items": [
+    {
+      "kind": "youtube#video",
+      "id": "hidLikes001",
+      "snippet": {
+        "publishedAt": "2023-01-15T12:00:00Z",
+        "channelId": "UCuAXFkgsw1L7xaCfnd5JJOw",
+        "title": "Controversial Video with Hidden Likes",
+        "description": "This video has like count hidden by the creator.",
+        "thumbnails": {
+          "high": {
+            "url": "https://i.ytimg.com/vi/hidLikes001/hqdefault.jpg"
+          }
+        },
+        "channelTitle": "Creator Channel",
+        "tags": [
+          "opinion"
+        ],
+        "categoryId": "22",
+        "liveBroadcastContent": "none"
+      },
+      "contentDetails": {
+        "duration": "PT10M0S",
+        "caption": "false"
+      },
+      "status": {
+        "privacyStatus": "public",
+        "publicStatsViewable": false
+      },
+      "statistics": {
+        "viewCount": "250000",
+        "commentCount": "1500"
+      }
+    }
+  ]
+}

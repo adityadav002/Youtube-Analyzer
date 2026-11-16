@@ -14,6 +14,8 @@ import shutil
 
 logger = logging.getLogger(__name__)
 
+from app.utils.youtube_url import parse_youtube_video_id, get_canonical_video_url
+
 download_bp = Blueprint('downloads', __name__, url_prefix='/api/downloads')
 
 def extract_video_id(url: str):
@@ -21,23 +23,7 @@ def extract_video_id(url: str):
     Extracts a YouTube video ID from a URL or raw ID string.
     Returns the 11-character video ID, or None if not a valid video URL/ID.
     """
-    if not url or not isinstance(url, str):
-        return None
-    url = url.strip()
-    patterns = [
-        r'(?:v=|\/v\/|embed\/|shorts\/|youtu\.be\/|\/v=)([^#\&\?]{11})',
-        r'^(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([^#\&\?]{11})',
-        r'^(?:https?:\/\/)?youtu\.be\/([^#\&\?]{11})',
-        r'^([a-zA-Z0-9_-]{11})$'
-    ]
-    for pattern in patterns:
-        match = re.search(pattern, url)
-        if match:
-            try:
-                return match.group(1)
-            except IndexError:
-                return match.group(0)
-    return None
+    return parse_youtube_video_id(url)
 
 def resolve_video(video_identifier: str) -> Video:
     """
@@ -105,6 +91,12 @@ def resolve_video(video_identifier: str) -> Video:
 
 @download_bp.route('', methods=['POST'])
 def start_download():
+    if not current_app.config.get('ENABLE_DOWNLOADS', True):
+        return jsonify({
+            'success': False,
+            'message': 'Media downloads are disabled in this environment (e.g. Render hosted instance).'
+        }), 503
+
     data = request.json or {}
     url = data.get('url')
     if isinstance(url, str):
@@ -286,6 +278,13 @@ def get_downloads():
             video_title = video.title if video else "Downloading YouTube Video..."
             thumbnail_url = video.thumbnail_url if video else None
             
+            # Reconcile completed downloads where file is no longer on disk
+            status = h.status
+            err_msg = h.error_message
+            if status == 'complete' and h.file_path and not os.path.exists(h.file_path):
+                status = 'expired'
+                err_msg = 'Downloaded file has expired or was removed from disk.'
+
             item = {
                 'id': h.id,
                 'video_id': h.video_id,
@@ -295,8 +294,8 @@ def get_downloads():
                 'quality': h.quality,
                 'file_path': h.file_path,
                 'file_size_bytes': h.file_size_bytes,
-                'status': h.status,
-                'error_message': h.error_message,
+                'status': status,
+                'error_message': err_msg,
                 'progress_percent': h.progress_percent,
                 'created_at': h.created_at.isoformat() if h.created_at else None,
                 'updated_at': h.updated_at.isoformat() if h.updated_at else None,
@@ -629,6 +628,11 @@ def download_file(download_id):
 
 @download_bp.route('/<int:download_id>/open', methods=['POST'])
 def open_file_location(download_id):
+    if not current_app.config.get('ENABLE_LOCAL_FILE_OPEN', True):
+        return jsonify({
+            'error': 'Local file explorer is not supported in this environment'
+        }), 501
+
     history = db.session.query(DownloadHistory).get(download_id)
     if not history:
         return jsonify({'error': 'Download record not found'}), 404
@@ -638,6 +642,16 @@ def open_file_location(download_id):
         
     try:
         file_path = os.path.abspath(history.file_path)
+        allowed_dirs = [
+            os.path.abspath(current_app.config.get('DOWNLOAD_DIR') or 'downloads'),
+            os.path.abspath(current_app.config.get('THUMBNAIL_DIR') or 'thumbnails')
+        ]
+        is_allowed = any(
+            os.path.commonpath([file_path, d]) == d for d in allowed_dirs
+        )
+        if not is_allowed:
+            return jsonify({'error': 'Access denied to file outside allowed directories'}), 403
+
         sys_type = platform.system()
         
         if sys_type == 'Windows':
@@ -746,6 +760,12 @@ def handle_direct_download(video_id):
     from app.models.settings import UserSettings
     from app.jobs.video_jobs import parse_rate_limit
     
+    if not current_app.config.get('ENABLE_DOWNLOADS', True):
+        return jsonify({
+            'success': False,
+            'message': 'Media downloads are disabled in this environment (e.g. Render hosted instance).'
+        }), 503
+
     download_type = request.args.get('download_type', 'video')
     quality = request.args.get('quality', 'best')
     format_option = request.args.get('format', 'mp4')
@@ -922,9 +942,9 @@ def handle_direct_download(video_id):
             elif quality in ['1080p', '720p', '480p']:
                 h = quality.replace('p', '')
                 if ffmpeg_available:
-                    ydl_opts['format'] = f'bestvideo[height<={h}]+bestaudio/best[height<={h}]'
+                    ydl_opts['format'] = f'bestvideo[height<={h}]+bestaudio/best[height<={h}]/best[height<={h}]/best'
                 else:
-                    ydl_opts['format'] = f'best[height<={h}]'
+                    ydl_opts['format'] = f'best[height<={h}]/best'
             else:
                 ydl_opts['format'] = 'best'
                 

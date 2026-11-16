@@ -39,7 +39,7 @@ class Config:
             "connect_timeout": 10
         }
     
-    USE_CELERY = os.environ.get('USE_CELERY', 'true').lower() == 'true'
+    USE_CELERY = os.environ.get('USE_CELERY', 'false').lower() == 'true'
     
     if USE_CELERY:
         REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
@@ -48,10 +48,19 @@ class Config:
     else:
         REDIS_URL = None
     
-    CORS_ORIGINS = os.environ.get('CORS_ORIGINS', 'http://localhost:5173,http://localhost:3000').split(',')
+    CORS_ORIGINS = [orig.strip() for orig in os.environ.get('CORS_ORIGINS', 'http://localhost:5173,http://localhost:3000').split(',') if orig.strip()]
     
     DOWNLOAD_DIR = os.environ.get('DOWNLOAD_DIR', os.path.join(os.getcwd(), 'downloads'))
     THUMBNAIL_DIR = os.environ.get('THUMBNAIL_DIR', os.path.join(os.getcwd(), 'thumbnails'))
+    
+    is_render = os.environ.get('RENDER') == 'true'
+    ENABLE_DOWNLOADS = os.environ.get('ENABLE_DOWNLOADS', 'false' if is_render else 'true').lower() == 'true'
+    ENABLE_LOCAL_FILE_OPEN = os.environ.get('ENABLE_LOCAL_FILE_OPEN', 'false' if is_render else 'true').lower() == 'true'
+    RATELIMIT_STORAGE_URI = os.environ.get('RATELIMIT_STORAGE_URI', 'memory://')
+    SEARCH_CACHE_TTL_HOURS = int(os.environ.get('SEARCH_CACHE_TTL_HOURS', '24'))
+    AI_PROVIDER = os.environ.get('AI_PROVIDER', 'gemini')
+    GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY') or os.environ.get('AI_API_KEY')
+    AI_MODEL = os.environ.get('AI_MODEL', 'gemini-1.5-flash')
 
 class DevelopmentConfig(Config):
     DEBUG = True

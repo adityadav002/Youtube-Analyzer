@@ -1,0 +1,18 @@
+{
+  "kind": "youtube#channelListResponse",
+  "items": [
+    {
+      "kind": "youtube#channel",
+      "id": "UCHiddenSubs12345678901",
+      "snippet": {
+        "title": "Secret Channel",
+        "publishedAt": "2020-01-01T00:00:00Z"
+      },
+      "statistics": {
+        "viewCount": "50000",
+        "videoCount": "12",
+        "hiddenSubscriberCount": true
+      }
+    }
+  ]
+}

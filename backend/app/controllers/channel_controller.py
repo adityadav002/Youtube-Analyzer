@@ -13,8 +13,10 @@ def get_channels():
     sort_by = request.args.get('sort_by', 'name')
     
     items, total = ChannelService.get_channels(page, per_page, sort_by)
+    dumped = channels_schema.dump(items)
     return jsonify({
-        'items': channels_schema.dump(items),
+        'items': dumped,
+        'channels': dumped,
         'total': total,
         'page': page,
         'per_page': per_page
@@ -30,6 +32,8 @@ def get_channel(channel_id):
         return jsonify({'error': 'Channel not found'}), 404
     return jsonify(channel_schema.dump(channel))
 
+from app.utils.youtube_url import parse_youtube_channel_url
+
 @channel_bp.route('', methods=['POST'])
 def add_channel():
     schema = ChannelCreateSchema()
@@ -37,7 +41,17 @@ def add_channel():
     if errors:
         return jsonify({'errors': errors}), 422
         
-    job_id = ChannelService.add_channel(request.json['url'])
+    url_input = request.json.get('url', '')
+    parsed = parse_youtube_channel_url(url_input)
+    if not parsed:
+        return jsonify({
+            'errors': {
+                'url': ['Invalid YouTube channel URL or handle. Expected format: https://youtube.com/@handle, https://youtube.com/channel/UC..., or https://youtube.com/c/name']
+            }
+        }), 422
+
+    _, canonical_url = parsed
+    job_id = ChannelService.add_channel(canonical_url)
     return jsonify({'job_id': job_id, 'status': 'queued'}), 202
 
 @channel_bp.route('/<channel_id>', methods=['PATCH'])

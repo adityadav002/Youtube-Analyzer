@@ -14,7 +14,7 @@ class UserSettings(TimestampMixin, db.Model):
     default_audio_format = Column(String(20), default='mp3')
     default_audio_quality = Column(String(20), default='192k')
     max_concurrent_downloads = Column(Integer, default=2)
-    ytdlp_player_client = Column(String(20), default='ios')
+    ytdlp_player_client = Column(String(20), default='android')
     ytdlp_rate_limit = Column(String(20), default='500K')
     ytdlp_proxy = Column(String(255), nullable=True)
     cookies_file_path = Column(String(500), nullable=True)

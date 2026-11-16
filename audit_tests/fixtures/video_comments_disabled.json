@@ -1,0 +1,35 @@
+{
+  "kind": "youtube#videoListResponse",
+  "etag": "etag_comments_disabled",
+  "items": [
+    {
+      "kind": "youtube#video",
+      "id": "noComments01",
+      "snippet": {
+        "publishedAt": "2022-05-10T08:30:00Z",
+        "channelId": "UCuAXFkgsw1L7xaCfnd5JJOw",
+        "title": "Kids Content Video with Comments Disabled",
+        "description": "Comments are turned off for COPPA compliance.",
+        "thumbnails": {
+          "high": {
+            "url": "https://i.ytimg.com/vi/noComments01/hqdefault.jpg"
+          }
+        },
+        "channelTitle": "Kids Channel",
+        "categoryId": "1",
+        "liveBroadcastContent": "none"
+      },
+      "contentDetails": {
+        "duration": "PT5M12S",
+        "caption": "true"
+      },
+      "status": {
+        "privacyStatus": "public"
+      },
+      "statistics": {
+        "viewCount": "89000",
+        "likeCount": "1200"
+      }
+    }
+  ]
+}

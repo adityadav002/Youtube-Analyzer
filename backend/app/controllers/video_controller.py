@@ -64,7 +64,7 @@ def import_video():
         }), 400
     
     try:
-        video = resolve_video(url)
+        video = resolve_video(video_id)
     except Exception as e:
         import logging
         logging.getLogger(__name__).exception(f"Unexpected error resolving video '{url}'")

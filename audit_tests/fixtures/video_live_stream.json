@@ -1,0 +1,38 @@
+{
+  "kind": "youtube#videoListResponse",
+  "items": [
+    {
+      "kind": "youtube#video",
+      "id": "liveStream01",
+      "snippet": {
+        "publishedAt": "2026-11-16T08:00:00Z",
+        "channelId": "UCLiveStreamChannel123",
+        "title": "🔴 24/7 Lofi Chill Radio - Live Stream",
+        "description": "Welcome to the live stream!",
+        "thumbnails": {
+          "high": {
+            "url": "https://i.ytimg.com/vi/liveStream01/hqdefault.jpg"
+          }
+        },
+        "channelTitle": "Lofi Radio",
+        "categoryId": "10",
+        "liveBroadcastContent": "live"
+      },
+      "contentDetails": {
+        "duration": "P0D",
+        "caption": "false"
+      },
+      "status": {
+        "privacyStatus": "public"
+      },
+      "statistics": {
+        "viewCount": "120340",
+        "likeCount": "8900"
+      },
+      "liveStreamingDetails": {
+        "actualStartTime": "2026-11-16T08:05:00Z",
+        "concurrentViewers": "4520"
+      }
+    }
+  ]
+}

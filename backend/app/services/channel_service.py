@@ -12,62 +12,61 @@ class ChannelService:
     def get_channel(channel_id: str):
         channel = ChannelRepository.get_by_id(channel_id)
         if channel:
-            # Reconcile counts dynamically from crawled videos in DB
             from app.models.video import Video
             from app import db
             
-            db_video_count = db.session.query(db.func.count(Video.id)).filter(Video.channel_id == channel_id).scalar() or 0
-            db_view_count = db.session.query(db.func.sum(Video.view_count)).filter(Video.channel_id == channel_id).scalar() or 0
-            db_join_date = db.session.query(db.func.min(Video.upload_date)).filter(Video.channel_id == channel_id).scalar()
+            # Reconcile counts dynamically from crawled videos in DB using a single query
+            row = db.session.query(
+                db.func.count(Video.id),
+                db.func.sum(Video.view_count),
+                db.func.min(Video.upload_date)
+            ).filter(Video.channel_id == channel_id).first()
             
-            updated = False
-            
-            # Sync video count if database count is larger or if not set
-            if not channel.video_count or db_video_count > channel.video_count:
-                channel.video_count = db_video_count
-                updated = True
+            if row:
+                db_video_count = row[0] or 0
+                db_view_count = row[1] or 0
+                db_join_date = row[2]
                 
-            # If view_count is null or 0, or if the db_view_count is greater (since it grows), use db_view_count
-            if db_view_count > 0 and (not channel.view_count or db_view_count > channel.view_count):
-                channel.view_count = db_view_count
-                updated = True
-                
-            # If join_date is null, use the oldest video upload date as fallback
-            if not channel.join_date and db_join_date:
-                channel.join_date = db_join_date
-                updated = True
-                
-            if updated:
-                db.session.commit()
-                
+                # Sync in-memory attributes without triggering DB write on read requests
+                if not channel.video_count or db_video_count > channel.video_count:
+                    channel.video_count = db_video_count
+                if db_view_count > 0 and (not channel.view_count or db_view_count > channel.view_count):
+                    channel.view_count = db_view_count
+                if not channel.join_date and db_join_date:
+                    channel.join_date = db_join_date
+                    
         return channel
         
     @staticmethod
     def get_channels(page: int = 1, per_page: int = 20, sort_by: str = 'name'):
         items, total = ChannelRepository.get_all(page, per_page, sort_by)
-        
-        # Reconcile each channel dynamically
+        if not items:
+            return items, total
+            
         from app.models.video import Video
         from app import db
         
+        # Eliminate N+1 query problem by fetching aggregated stats in a single grouped query
+        channel_ids = [c.id for c in items]
+        stats = db.session.query(
+            Video.channel_id,
+            db.func.count(Video.id),
+            db.func.sum(Video.view_count),
+            db.func.min(Video.upload_date)
+        ).filter(Video.channel_id.in_(channel_ids)).group_by(Video.channel_id).all()
+        
+        stats_map = {row[0]: (row[1] or 0, row[2] or 0, row[3]) for row in stats}
+        
         for channel in items:
-            db_video_count = db.session.query(db.func.count(Video.id)).filter(Video.channel_id == channel.id).scalar() or 0
-            db_view_count = db.session.query(db.func.sum(Video.view_count)).filter(Video.channel_id == channel.id).scalar() or 0
-            db_join_date = db.session.query(db.func.min(Video.upload_date)).filter(Video.channel_id == channel.id).scalar()
-            
-            updated = False
-            if not channel.video_count or db_video_count > channel.video_count:
-                channel.video_count = db_video_count
-                updated = True
-            if db_view_count > 0 and (not channel.view_count or db_view_count > channel.view_count):
-                channel.view_count = db_view_count
-                updated = True
-            if not channel.join_date and db_join_date:
-                channel.join_date = db_join_date
-                updated = True
-            if updated:
-                db.session.commit()
-                
+            if channel.id in stats_map:
+                db_video_count, db_view_count, db_join_date = stats_map[channel.id]
+                if not channel.video_count or db_video_count > channel.video_count:
+                    channel.video_count = db_video_count
+                if db_view_count > 0 and (not channel.view_count or db_view_count > channel.view_count):
+                    channel.view_count = db_view_count
+                if not channel.join_date and db_join_date:
+                    channel.join_date = db_join_date
+                    
         return items, total
 
     @staticmethod

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Eye, Clock, Calendar, ThumbsUp, MessageSquare, Loader2, PlayCircle, Download, CheckCircle, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Eye, Clock, Calendar, ThumbsUp, MessageSquare, Loader2, PlayCircle, Download, CheckCircle, AlertCircle, Sparkles } from 'lucide-react';
 import { getVideo } from '../api/videos';
 import { startDownload } from '../api/downloads';
 import { formatNumber, formatDuration, formatDate } from '../utils/formatters';
 import { API_BASE_URL } from '../constants';
+import { apiClient } from '../client';
 import useNotificationStore from '../stores/notificationStore';
 
 export default function VideoDetail() {
@@ -21,6 +22,33 @@ export default function VideoDetail() {
     queryFn: () => getVideo(id),
     refetchInterval: shouldPoll ? 3000 : false
   });
+
+  const [analyzing, setAnalyzing] = useState(false);
+  const { data: aiData, refetch: refetchAI } = useQuery({
+    queryKey: ['ai-analysis', id],
+    queryFn: async () => {
+      try {
+        const res = await apiClient.get(`/ai/analysis/${id}`);
+        return res.data?.result;
+      } catch (e) {
+        return null;
+      }
+    },
+    enabled: !!id,
+  });
+
+  const handleRunAI = async () => {
+    setAnalyzing(true);
+    try {
+      await apiClient.post(`/ai/analyze/${id}`);
+      notify({ type: 'success', title: 'Analysis Complete', message: 'AI insights generated successfully.' });
+      refetchAI();
+    } catch (e) {
+      notify({ type: 'error', title: 'AI Analysis Failed', message: e.response?.data?.message || e.message });
+    } finally {
+      setAnalyzing(false);
+    }
+  };
 
   const startDownloadMutation = useMutation({
     mutationFn: startDownload,
@@ -114,13 +142,23 @@ export default function VideoDetail() {
                   <Calendar className="w-4 h-4 mr-1.5" />
                   {formatDate(video.upload_date)}
                 </span>
-                {video.like_count > 0 && (
+                {video.like_count !== null && video.like_count !== undefined ? (
                   <span className="flex items-center">
                     <ThumbsUp className="w-4 h-4 mr-1.5" />
                     {formatNumber(video.like_count)} likes
                   </span>
+                ) : (
+                  <span className="flex items-center text-gray-400">
+                    <ThumbsUp className="w-4 h-4 mr-1.5" />
+                    Likes hidden
+                  </span>
                 )}
-                {video.comment_count > 0 && (
+                {video.comments_disabled || video.comment_count === null || video.comment_count === undefined ? (
+                  <span className="flex items-center text-gray-400">
+                    <MessageSquare className="w-4 h-4 mr-1.5" />
+                    Comments disabled
+                  </span>
+                ) : (
                   <span className="flex items-center">
                     <MessageSquare className="w-4 h-4 mr-1.5" />
                     {formatNumber(video.comment_count)} comments
@@ -157,11 +195,20 @@ export default function VideoDetail() {
                 Description
               </button>
               <button 
-                className={`pb-4 font-medium text-sm border-b-2 transition-colors ${activeTab === 'formats' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
-                onClick={() => setActiveTab('formats')}
+                className={`pb-4 font-medium text-sm border-b-2 transition-colors flex items-center space-x-1.5 ${activeTab === 'ai' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                onClick={() => setActiveTab('ai')}
               >
-                Formats & Streams
+                <Sparkles className="w-4 h-4" />
+                <span>AI Insights</span>
               </button>
+              {video.formats && video.formats.length > 0 && (
+                <button 
+                  className={`pb-4 font-medium text-sm border-b-2 transition-colors ${activeTab === 'formats' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+                  onClick={() => setActiveTab('formats')}
+                >
+                  Formats & Streams
+                </button>
+              )}
               {video.chapters && video.chapters.length > 0 && (
                 <button 
                   className={`pb-4 font-medium text-sm border-b-2 transition-colors ${activeTab === 'chapters' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
@@ -234,6 +281,108 @@ export default function VideoDetail() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {activeTab === 'ai' && (
+              <div className="space-y-6">
+                {aiData ? (
+                  <div className="space-y-6">
+                    {/* Summary */}
+                    <div className="bg-gradient-to-br from-indigo-50/70 to-purple-50/70 rounded-xl p-5 border border-indigo-100">
+                      <h3 className="text-base font-semibold text-indigo-950 mb-2 flex items-center space-x-2">
+                        <Sparkles className="w-4 h-4 text-indigo-600" />
+                        <span>Executive Summary</span>
+                      </h3>
+                      <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                        {aiData.summary}
+                      </p>
+                    </div>
+
+                    {/* Topics & Takeaways Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Topics */}
+                      <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                        <h4 className="text-sm font-semibold text-gray-900 mb-3">Key Topics</h4>
+                        <div className="space-y-2">
+                          {aiData.topics?.map((t, idx) => (
+                            <div key={idx} className="p-2.5 rounded-lg bg-gray-50 border border-gray-100">
+                              <span className="font-semibold text-xs text-indigo-700 block">{t.topic}</span>
+                              <span className="text-xs text-gray-600">{t.description}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Key Takeaways */}
+                      <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                        <h4 className="text-sm font-semibold text-gray-900 mb-3">Key Takeaways</h4>
+                        <ul className="space-y-2 text-xs text-gray-700">
+                          {aiData.key_takeaways?.map((item, idx) => (
+                            <li key={idx} className="flex items-start space-x-2">
+                              <span className="text-indigo-600 font-bold">•</span>
+                              <span>{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+
+                    {/* Sentiment Analysis */}
+                    {aiData.sentiment && (
+                      <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                        <h4 className="text-sm font-semibold text-gray-900 mb-2 flex items-center justify-between">
+                          <span>Audience Sentiment Analysis</span>
+                          <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold uppercase ${
+                            aiData.sentiment.overall === 'positive' ? 'bg-emerald-100 text-emerald-800' :
+                            aiData.sentiment.overall === 'negative' ? 'bg-rose-100 text-rose-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {aiData.sentiment.overall}
+                          </span>
+                        </h4>
+                        <p className="text-xs text-gray-600 mb-4">{aiData.sentiment.summary}</p>
+                        
+                        {/* Sentiment Bar */}
+                        <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden flex">
+                          <div style={{ width: `${aiData.sentiment.positive_pct || 0}%` }} className="bg-emerald-500" title={`Positive: ${aiData.sentiment.positive_pct}%`} />
+                          <div style={{ width: `${aiData.sentiment.neutral_pct || 0}%` }} className="bg-gray-400" title={`Neutral: ${aiData.sentiment.neutral_pct}%`} />
+                          <div style={{ width: `${aiData.sentiment.negative_pct || 0}%` }} className="bg-rose-500" title={`Negative: ${aiData.sentiment.negative_pct}%`} />
+                        </div>
+                        <div className="flex justify-between text-[11px] text-gray-500 mt-2">
+                          <span className="text-emerald-700 font-medium">Positive: {aiData.sentiment.positive_pct || 0}%</span>
+                          <span className="text-gray-600 font-medium">Neutral: {aiData.sentiment.neutral_pct || 0}%</span>
+                          <span className="text-rose-700 font-medium">Negative: {aiData.sentiment.negative_pct || 0}%</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 px-4 bg-gray-50 rounded-2xl border border-dashed border-gray-300">
+                    <Sparkles className="w-10 h-10 text-indigo-500 mx-auto mb-3" />
+                    <h3 className="text-base font-semibold text-gray-900">No AI Analysis Yet</h3>
+                    <p className="text-xs text-gray-500 max-w-md mx-auto mt-1 mb-5">
+                      Generate an executive summary, topic breakdown, and audience sentiment analysis powered by Google Gemini 1.5 Flash.
+                    </p>
+                    <button
+                      onClick={handleRunAI}
+                      disabled={analyzing}
+                      className="inline-flex items-center space-x-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold shadow-sm transition-all disabled:opacity-50"
+                    >
+                      {analyzing ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          <span>Analyzing Video with Gemini...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4" />
+                          <span>Generate AI Insights</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

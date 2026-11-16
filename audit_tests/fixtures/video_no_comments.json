@@ -1,0 +1,34 @@
+{
+  "kind": "youtube#videoListResponse",
+  "items": [
+    {
+      "kind": "youtube#video",
+      "id": "zeroComm001",
+      "snippet": {
+        "publishedAt": "2026-11-15T10:00:00Z",
+        "channelId": "UCuAXFkgsw1L7xaCfnd5JJOw",
+        "title": "Brand New Video - Zero Comments",
+        "description": "Just uploaded 2 minutes ago.",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/zeroComm001/default.jpg"
+          }
+        },
+        "channelTitle": "New Creator",
+        "categoryId": "27"
+      },
+      "contentDetails": {
+        "duration": "PT2M45S",
+        "caption": "false"
+      },
+      "status": {
+        "privacyStatus": "public"
+      },
+      "statistics": {
+        "viewCount": "5",
+        "likeCount": "1",
+        "commentCount": "0"
+      }
+    }
+  ]
+}

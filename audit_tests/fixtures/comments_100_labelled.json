@@ -1,0 +1,702 @@
+[
+  {
+    "id": "comment_001",
+    "author": "User_1",
+    "text": "This is the absolute best explanation of Python I have ever seen! Thank you so much!",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "English Praise"
+  },
+  {
+    "id": "comment_002",
+    "author": "User_2",
+    "text": "Incredible content as always, keep up the amazing work brother!",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "English Praise"
+  },
+  {
+    "id": "comment_003",
+    "author": "User_3",
+    "text": "Super helpful video, solved my bug in 2 minutes flat! 🎉",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "English Praise"
+  },
+  {
+    "id": "comment_004",
+    "author": "User_4",
+    "text": "Worst tutorial ever. Complete waste of 20 minutes.",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "English Criticism"
+  },
+  {
+    "id": "comment_005",
+    "author": "User_5",
+    "text": "The audio is terrible, his voice hurts my ears.",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "English Criticism"
+  },
+  {
+    "id": "comment_006",
+    "author": "User_6",
+    "text": "Totally outdated information, does not work with modern libraries.",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "English Criticism"
+  },
+  {
+    "id": "comment_007",
+    "author": "User_7",
+    "text": "What version of Python is used at 04:30?",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Question / Inactive"
+  },
+  {
+    "id": "comment_008",
+    "author": "User_8",
+    "text": "At 12:15 you forgot to import os module.",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Fact / Feedback"
+  },
+  {
+    "id": "comment_009",
+    "author": "User_9",
+    "text": "The video is 14 minutes and 32 seconds long.",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Statement"
+  },
+  {
+    "id": "comment_010",
+    "author": "User_10",
+    "text": "Oh great, another crypto bro teaching machine learning. Just what the world needed. 🙄",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Sarcasm"
+  },
+  {
+    "id": "comment_011",
+    "author": "User_11",
+    "text": "Wow, what a genius! You figured out how to write a for-loop! Nobel prize incoming!",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Sarcasm"
+  },
+  {
+    "id": "comment_012",
+    "author": "User_12",
+    "text": "Nice",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Very Short"
+  },
+  {
+    "id": "comment_013",
+    "author": "User_13",
+    "text": "good",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Very Short"
+  },
+  {
+    "id": "comment_014",
+    "author": "User_14",
+    "text": "bad",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Very Short"
+  },
+  {
+    "id": "comment_015",
+    "author": "User_15",
+    "text": "ok",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Very Short"
+  },
+  {
+    "id": "comment_016",
+    "author": "User_16",
+    "text": "😂",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Emoji Only"
+  },
+  {
+    "id": "comment_017",
+    "author": "User_17",
+    "text": "🔥🔥🔥",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Emoji Only"
+  },
+  {
+    "id": "comment_018",
+    "author": "User_18",
+    "text": "❤️❤️",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Emoji Only"
+  },
+  {
+    "id": "comment_019",
+    "author": "User_19",
+    "text": "💩",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Emoji Only"
+  },
+  {
+    "id": "comment_020",
+    "author": "User_20",
+    "text": "🤮",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Emoji Only"
+  },
+  {
+    "id": "comment_021",
+    "author": "User_21",
+    "text": "👍",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Emoji Only"
+  },
+  {
+    "id": "comment_022",
+    "author": "User_22",
+    "text": "😐",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Emoji Only"
+  },
+  {
+    "id": "comment_023",
+    "author": "User_23",
+    "text": "FIRST!",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Spam / First"
+  },
+  {
+    "id": "comment_024",
+    "author": "User_24",
+    "text": "first comment here",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Spam / First"
+  },
+  {
+    "id": "comment_025",
+    "author": "User_25",
+    "text": "Check out my channel for free crypto signals 🚀🚀🚀 whatsapp: +12345678",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Spam / Bot"
+  },
+  {
+    "id": "comment_026",
+    "author": "User_26",
+    "text": "I made $5000 in 2 days using this strategy visit investment-scam.xyz",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Spam / Bot"
+  },
+  {
+    "id": "comment_027",
+    "author": "User_27",
+    "text": "Bhai ekdum mast video tha, maza aa gaya! ❤️",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Hinglish"
+  },
+  {
+    "id": "comment_028",
+    "author": "User_28",
+    "text": "Ye code kaam nahi kar raha hai, bohot bekaar tutorial hai.",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Hinglish"
+  },
+  {
+    "id": "comment_029",
+    "author": "User_29",
+    "text": "Bhai 10:20 pe kya kiya samajh nahi aaya, please reply.",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Hinglish"
+  },
+  {
+    "id": "comment_030",
+    "author": "User_30",
+    "text": "बहुत ही शानदार और ज्ञानवर्धक वीडियो। धन्यवाद गुरुजी!",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Hindi"
+  },
+  {
+    "id": "comment_031",
+    "author": "User_31",
+    "text": "समय बर्बाद कर दिया, कुछ नया नहीं सिखाया।",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Hindi"
+  },
+  {
+    "id": "comment_032",
+    "author": "User_32",
+    "text": "यह वीडियो 2026 में देखा जा रहा है।",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Hindi"
+  },
+  {
+    "id": "comment_033",
+    "author": "User_33",
+    "text": "THIS IS THE GREATEST VIDEO IN THE HISTORY OF YOUTUBE!!!!",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "All-Caps"
+  },
+  {
+    "id": "comment_034",
+    "author": "User_34",
+    "text": "I ABSOLUTELY HATE THIS GARBAGE DELETE YOUR CHANNEL",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "All-Caps"
+  },
+  {
+    "id": "comment_035",
+    "author": "User_35",
+    "text": "WHY ARE YOU SHOUTING AT 05:00",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "All-Caps"
+  },
+  {
+    "id": "comment_036",
+    "author": "User_36",
+    "text": "This is the absolute best explanation of Python I have ever seen! Thank you so much! (#36)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "English Praise"
+  },
+  {
+    "id": "comment_037",
+    "author": "User_37",
+    "text": "Incredible content as always, keep up the amazing work brother! (#37)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "English Praise"
+  },
+  {
+    "id": "comment_038",
+    "author": "User_38",
+    "text": "Super helpful video, solved my bug in 2 minutes flat! 🎉 (#38)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "English Praise"
+  },
+  {
+    "id": "comment_039",
+    "author": "User_39",
+    "text": "Worst tutorial ever. Complete waste of 20 minutes. (#39)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "English Criticism"
+  },
+  {
+    "id": "comment_040",
+    "author": "User_40",
+    "text": "The audio is terrible, his voice hurts my ears. (#40)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "English Criticism"
+  },
+  {
+    "id": "comment_041",
+    "author": "User_41",
+    "text": "Totally outdated information, does not work with modern libraries. (#41)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "English Criticism"
+  },
+  {
+    "id": "comment_042",
+    "author": "User_42",
+    "text": "What version of Python is used at 04:30? (#42)",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Question / Inactive"
+  },
+  {
+    "id": "comment_043",
+    "author": "User_43",
+    "text": "At 12:15 you forgot to import os module. (#43)",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Fact / Feedback"
+  },
+  {
+    "id": "comment_044",
+    "author": "User_44",
+    "text": "The video is 14 minutes and 32 seconds long. (#44)",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Statement"
+  },
+  {
+    "id": "comment_045",
+    "author": "User_45",
+    "text": "Oh great, another crypto bro teaching machine learning. Just what the world needed. 🙄 (#45)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Sarcasm"
+  },
+  {
+    "id": "comment_046",
+    "author": "User_46",
+    "text": "Wow, what a genius! You figured out how to write a for-loop! Nobel prize incoming! (#46)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Sarcasm"
+  },
+  {
+    "id": "comment_047",
+    "author": "User_47",
+    "text": "Nice (#47)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Very Short"
+  },
+  {
+    "id": "comment_048",
+    "author": "User_48",
+    "text": "good (#48)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Very Short"
+  },
+  {
+    "id": "comment_049",
+    "author": "User_49",
+    "text": "bad (#49)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Very Short"
+  },
+  {
+    "id": "comment_050",
+    "author": "User_50",
+    "text": "ok (#50)",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Very Short"
+  },
+  {
+    "id": "comment_051",
+    "author": "User_51",
+    "text": "😂 (#51)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Emoji Only"
+  },
+  {
+    "id": "comment_052",
+    "author": "User_52",
+    "text": "🔥🔥🔥 (#52)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Emoji Only"
+  },
+  {
+    "id": "comment_053",
+    "author": "User_53",
+    "text": "❤️❤️ (#53)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Emoji Only"
+  },
+  {
+    "id": "comment_054",
+    "author": "User_54",
+    "text": "💩 (#54)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Emoji Only"
+  },
+  {
+    "id": "comment_055",
+    "author": "User_55",
+    "text": "🤮 (#55)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Emoji Only"
+  },
+  {
+    "id": "comment_056",
+    "author": "User_56",
+    "text": "👍 (#56)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Emoji Only"
+  },
+  {
+    "id": "comment_057",
+    "author": "User_57",
+    "text": "😐 (#57)",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Emoji Only"
+  },
+  {
+    "id": "comment_058",
+    "author": "User_58",
+    "text": "FIRST! (#58)",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Spam / First"
+  },
+  {
+    "id": "comment_059",
+    "author": "User_59",
+    "text": "first comment here (#59)",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Spam / First"
+  },
+  {
+    "id": "comment_060",
+    "author": "User_60",
+    "text": "Check out my channel for free crypto signals 🚀🚀🚀 whatsapp: +12345678 (#60)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Spam / Bot"
+  },
+  {
+    "id": "comment_061",
+    "author": "User_61",
+    "text": "I made $5000 in 2 days using this strategy visit investment-scam.xyz (#61)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Spam / Bot"
+  },
+  {
+    "id": "comment_062",
+    "author": "User_62",
+    "text": "Bhai ekdum mast video tha, maza aa gaya! ❤️ (#62)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Hinglish"
+  },
+  {
+    "id": "comment_063",
+    "author": "User_63",
+    "text": "Ye code kaam nahi kar raha hai, bohot bekaar tutorial hai. (#63)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Hinglish"
+  },
+  {
+    "id": "comment_064",
+    "author": "User_64",
+    "text": "Bhai 10:20 pe kya kiya samajh nahi aaya, please reply. (#64)",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Hinglish"
+  },
+  {
+    "id": "comment_065",
+    "author": "User_65",
+    "text": "बहुत ही शानदार और ज्ञानवर्धक वीडियो। धन्यवाद गुरुजी! (#65)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Hindi"
+  },
+  {
+    "id": "comment_066",
+    "author": "User_66",
+    "text": "समय बर्बाद कर दिया, कुछ नया नहीं सिखाया। (#66)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Hindi"
+  },
+  {
+    "id": "comment_067",
+    "author": "User_67",
+    "text": "यह वीडियो 2026 में देखा जा रहा है। (#67)",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Hindi"
+  },
+  {
+    "id": "comment_068",
+    "author": "User_68",
+    "text": "THIS IS THE GREATEST VIDEO IN THE HISTORY OF YOUTUBE!!!! (#68)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "All-Caps"
+  },
+  {
+    "id": "comment_069",
+    "author": "User_69",
+    "text": "I ABSOLUTELY HATE THIS GARBAGE DELETE YOUR CHANNEL (#69)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "All-Caps"
+  },
+  {
+    "id": "comment_070",
+    "author": "User_70",
+    "text": "WHY ARE YOU SHOUTING AT 05:00 (#70)",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "All-Caps"
+  },
+  {
+    "id": "comment_071",
+    "author": "User_71",
+    "text": "This is the absolute best explanation of Python I have ever seen! Thank you so much! (#71)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "English Praise"
+  },
+  {
+    "id": "comment_072",
+    "author": "User_72",
+    "text": "Incredible content as always, keep up the amazing work brother! (#72)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "English Praise"
+  },
+  {
+    "id": "comment_073",
+    "author": "User_73",
+    "text": "Super helpful video, solved my bug in 2 minutes flat! 🎉 (#73)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "English Praise"
+  },
+  {
+    "id": "comment_074",
+    "author": "User_74",
+    "text": "Worst tutorial ever. Complete waste of 20 minutes. (#74)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "English Criticism"
+  },
+  {
+    "id": "comment_075",
+    "author": "User_75",
+    "text": "The audio is terrible, his voice hurts my ears. (#75)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "English Criticism"
+  },
+  {
+    "id": "comment_076",
+    "author": "User_76",
+    "text": "Totally outdated information, does not work with modern libraries. (#76)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "English Criticism"
+  },
+  {
+    "id": "comment_077",
+    "author": "User_77",
+    "text": "What version of Python is used at 04:30? (#77)",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Question / Inactive"
+  },
+  {
+    "id": "comment_078",
+    "author": "User_78",
+    "text": "At 12:15 you forgot to import os module. (#78)",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Fact / Feedback"
+  },
+  {
+    "id": "comment_079",
+    "author": "User_79",
+    "text": "The video is 14 minutes and 32 seconds long. (#79)",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Statement"
+  },
+  {
+    "id": "comment_080",
+    "author": "User_80",
+    "text": "Oh great, another crypto bro teaching machine learning. Just what the world needed. 🙄 (#80)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Sarcasm"
+  },
+  {
+    "id": "comment_081",
+    "author": "User_81",
+    "text": "Wow, what a genius! You figured out how to write a for-loop! Nobel prize incoming! (#81)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Sarcasm"
+  },
+  {
+    "id": "comment_082",
+    "author": "User_82",
+    "text": "Nice (#82)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Very Short"
+  },
+  {
+    "id": "comment_083",
+    "author": "User_83",
+    "text": "good (#83)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Very Short"
+  },
+  {
+    "id": "comment_084",
+    "author": "User_84",
+    "text": "bad (#84)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Very Short"
+  },
+  {
+    "id": "comment_085",
+    "author": "User_85",
+    "text": "ok (#85)",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Very Short"
+  },
+  {
+    "id": "comment_086",
+    "author": "User_86",
+    "text": "😂 (#86)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Emoji Only"
+  },
+  {
+    "id": "comment_087",
+    "author": "User_87",
+    "text": "🔥🔥🔥 (#87)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Emoji Only"
+  },
+  {
+    "id": "comment_088",
+    "author": "User_88",
+    "text": "❤️❤️ (#88)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Emoji Only"
+  },
+  {
+    "id": "comment_089",
+    "author": "User_89",
+    "text": "💩 (#89)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Emoji Only"
+  },
+  {
+    "id": "comment_090",
+    "author": "User_90",
+    "text": "🤮 (#90)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Emoji Only"
+  },
+  {
+    "id": "comment_091",
+    "author": "User_91",
+    "text": "👍 (#91)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Emoji Only"
+  },
+  {
+    "id": "comment_092",
+    "author": "User_92",
+    "text": "😐 (#92)",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Emoji Only"
+  },
+  {
+    "id": "comment_093",
+    "author": "User_93",
+    "text": "FIRST! (#93)",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Spam / First"
+  },
+  {
+    "id": "comment_094",
+    "author": "User_94",
+    "text": "first comment here (#94)",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Spam / First"
+  },
+  {
+    "id": "comment_095",
+    "author": "User_95",
+    "text": "Check out my channel for free crypto signals 🚀🚀🚀 whatsapp: +12345678 (#95)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Spam / Bot"
+  },
+  {
+    "id": "comment_096",
+    "author": "User_96",
+    "text": "I made $5000 in 2 days using this strategy visit investment-scam.xyz (#96)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Spam / Bot"
+  },
+  {
+    "id": "comment_097",
+    "author": "User_97",
+    "text": "Bhai ekdum mast video tha, maza aa gaya! ❤️ (#97)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Hinglish"
+  },
+  {
+    "id": "comment_098",
+    "author": "User_98",
+    "text": "Ye code kaam nahi kar raha hai, bohot bekaar tutorial hai. (#98)",
+    "ground_truth_sentiment": "NEGATIVE",
+    "category": "Hinglish"
+  },
+  {
+    "id": "comment_099",
+    "author": "User_99",
+    "text": "Bhai 10:20 pe kya kiya samajh nahi aaya, please reply. (#99)",
+    "ground_truth_sentiment": "NEUTRAL",
+    "category": "Hinglish"
+  },
+  {
+    "id": "comment_100",
+    "author": "User_100",
+    "text": "बहुत ही शानदार और ज्ञानवर्धक वीडियो। धन्यवाद गुरुजी! (#100)",
+    "ground_truth_sentiment": "POSITIVE",
+    "category": "Hindi"
+  }
+]

@@ -407,9 +407,9 @@ def download_video_task(self, job_id: str, history_id: int):
             elif quality in ['1080p', '720p', '480p']:
                 h = quality.replace('p', '')
                 if ffmpeg_available:
-                    ydl_opts['format'] = f'bestvideo[height<={h}]+bestaudio/best[height<={h}]'
+                    ydl_opts['format'] = f'bestvideo[height<={h}]+bestaudio/best[height<={h}]/best[height<={h}]/best'
                 else:
-                    ydl_opts['format'] = f'best[height<={h}]'
+                    ydl_opts['format'] = f'best[height<={h}]/best'
             else:
                 ydl_opts['format'] = 'best'
                 
