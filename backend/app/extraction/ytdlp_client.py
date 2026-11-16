@@ -85,11 +85,20 @@ def configure_ytdlp_options(ydl_opts: dict, settings=None) -> dict:
         # Render mounts Secret Files under /etc/secrets as read-only.
         # yt-dlp attempts to write updated session cookies back to the cookie file.
         # Copy to a writable temp file so yt-dlp can read and write freely.
+        # Preserve live updated cookies: only re-copy if temp file doesn't exist
+        # or if the source file was updated more recently.
         temp_cookies = os.path.join(tempfile.gettempdir(), 'rendered_cookies.txt')
         try:
-            shutil.copyfile(source_cookie_file, temp_cookies)
+            source_mtime = os.path.getmtime(source_cookie_file)
+            temp_exists = os.path.exists(temp_cookies) and os.path.getsize(temp_cookies) > 0
+            temp_mtime = os.path.getmtime(temp_cookies) if temp_exists else 0
+
+            if not temp_exists or source_mtime > temp_mtime:
+                shutil.copyfile(source_cookie_file, temp_cookies)
+                logger.info(f"[YtdlpConfig] Copied cookies from {source_cookie_file} to writable temp {temp_cookies}")
+            else:
+                logger.info(f"[YtdlpConfig] Reusing live updated cookies from {temp_cookies}")
             cookie_target = temp_cookies
-            logger.info(f"[YtdlpConfig] Copied cookies from {source_cookie_file} to writable temp {cookie_target}")
         except Exception as e:
             logger.warning(f"[YtdlpConfig] Failed to copy {source_cookie_file} to temp: {e}. Using source path.")
             cookie_target = source_cookie_file
@@ -98,8 +107,12 @@ def configure_ytdlp_options(ydl_opts: dict, settings=None) -> dict:
         import tempfile
         temp_cookies = os.path.join(tempfile.gettempdir(), 'rendered_cookies.txt')
         try:
-            with open(temp_cookies, 'w', encoding='utf-8') as f:
-                f.write(raw_cookies)
+            if not os.path.exists(temp_cookies) or os.path.getsize(temp_cookies) == 0:
+                with open(temp_cookies, 'w', encoding='utf-8') as f:
+                    f.write(raw_cookies)
+                logger.info(f"[YtdlpConfig] Initialized cookies in {temp_cookies} from env")
+            else:
+                logger.info(f"[YtdlpConfig] Reusing live updated cookies from {temp_cookies}")
             cookie_target = temp_cookies
         except Exception as e:
             logger.warning(f"[YtdlpConfig] Failed to write YTDLP_COOKIES_TEXT to tempfile: {e}")
