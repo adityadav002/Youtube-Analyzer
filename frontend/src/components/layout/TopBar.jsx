@@ -38,9 +38,11 @@ export default function TopBar({ onMenuClick }) {
 
         {/* Brand Logo - Mobile Only */}
         <Link to="/dashboard" className="flex md:hidden items-center space-x-2">
-          <div className="bg-indigo-600 p-1.5 rounded-lg">
-            <Youtube className="w-5 h-5 text-white" />
-          </div>
+          <img 
+            src="/logo.png" 
+            alt="YouTube Analyzer" 
+            className="w-7 h-7 object-contain" 
+          />
           <span className="text-base font-bold text-gray-900 tracking-tight">YT Analyzer</span>
         </Link>
 

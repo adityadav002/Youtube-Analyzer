@@ -16,9 +16,11 @@ function SidebarContent({ onClose }) {
       {/* Logo Area */}
       <div className="p-6 flex items-center justify-between border-b border-slate-800">
         <div className="flex items-center space-x-3">
-          <div className="bg-indigo-600 p-2 rounded-lg">
-            <Youtube className="w-6 h-6 text-white" />
-          </div>
+          <img 
+            src="/logo.png" 
+            alt="YouTube Analyzer" 
+            className="w-8 h-8 object-contain drop-shadow" 
+          />
           <span className="text-lg font-bold tracking-tight">YT Analyzer</span>
         </div>
         {/* Close button - only visible on mobile drawer */}
