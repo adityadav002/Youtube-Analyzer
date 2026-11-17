@@ -181,4 +181,36 @@ class TestAIAnalysisPipeline(unittest.TestCase):
         parsed = AIAnalysisService._parse_gemini_json_response(payload, "test_vid")
         self.assertEqual(parsed['summary'], "Multi-part JSON extracted successfully")
 
+    def test_ai_analyze_cascades_on_timeout(self):
+        import requests
+        v = Video(id="vid_ai_timeout", title="Timeout Test", channel_id="UC123")
+        db.session.add(v)
+        db.session.commit()
+
+        AIAnalysisService._cached_model = None
+
+        timeout_err = requests.exceptions.Timeout("Read timed out")
+        resp_200 = MagicMock()
+        resp_200.status_code = 200
+        resp_200.json.return_value = {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {"text": json.dumps({"summary": "Worked after timeout!", "topics": [], "key_takeaways": [], "sentiment": {"overall": "neutral"}})}
+                        ]
+                    }
+                }
+            ]
+        }
+
+        with patch.dict(os.environ, {'GEMINI_API_KEY': 'test_gemini_key'}):
+            with patch('requests.post', side_effect=[timeout_err, resp_200]) as mock_post:
+                res = self.client.post('/api/ai/analyze/vid_ai_timeout')
+                self.assertEqual(res.status_code, 200)
+                data = res.get_json()
+                self.assertEqual(data['result']['summary'], "Worked after timeout!")
+                self.assertGreaterEqual(mock_post.call_count, 2)
+
+
 

@@ -25,7 +25,7 @@ class AIAnalysisService:
 
     @classmethod
     def get_model_name(cls) -> str:
-        return os.environ.get('AI_MODEL') or cls._cached_model or 'gemini-2.5-flash'
+        return os.environ.get('AI_MODEL') or cls._cached_model or 'gemini-3.8-flash'
 
     @staticmethod
     def get_api_key() -> Optional[str]:
@@ -63,15 +63,17 @@ class AIAnalysisService:
         and queries ListModels to discover the active models supported by the API key.
         """
         default_candidates = [
-            'gemini-2.5-flash',
+            'gemini-3.8-flash',
             'gemini-flash-latest',
+            'gemini-3.5-flash',
+            'gemini-3-flash-preview',
+            'gemini-3.8-flash-lite',
+            'gemini-3.5-flash-lite',
+            'gemini-2.5-flash',
             'gemini-2.0-flash',
-            'gemini-2.5-flash-lite',
-            'gemini-flash-lite-latest',
-            'gemini-2.5-pro',
-            'gemini-pro-latest',
             'gemini-1.5-flash',
-            'gemini-1.5-pro'
+            'gemini-pro-latest',
+            'gemini-2.5-pro'
         ]
 
         env_model = os.environ.get('AI_MODEL')
@@ -88,13 +90,15 @@ class AIAnalysisService:
             for api_ver in api_versions:
                 url = f"https://generativelanguage.googleapis.com/{api_ver}/models/{model}:generateContent?key={api_key}"
                 try:
-                    resp = requests.post(url, json=payload, timeout=30)
+                    resp = requests.post(url, json=payload, timeout=60)
                 except requests.exceptions.Timeout as te:
-                    logger.error(f"Gemini API timed out for video {video_id}: {te}")
-                    raise AIAnalysisError("Gemini AI request timed out. Please try again later.", status_code=504) from te
+                    logger.warning(f"[AIAnalysisService] Model '{model}' on '{api_ver}' timed out after 60s for video {video_id}. Trying fallback...")
+                    last_error = f"Model '{model}' timed out"
+                    continue
                 except requests.exceptions.RequestException as re:
-                    logger.error(f"Network error calling Gemini API for video {video_id}: {re}")
-                    raise AIAnalysisError("Failed to connect to Gemini AI API due to network error.", status_code=502) from re
+                    logger.warning(f"[AIAnalysisService] Network error calling model '{model}' on '{api_ver}': {re}. Trying fallback...")
+                    last_error = str(re)
+                    continue
 
                 if resp.status_code == 200:
                     cls._cached_model = model
@@ -126,7 +130,7 @@ class AIAnalysisService:
                         logger.warning(f"[AIAnalysisService] Model '{model}' failed with generationConfig ({err_msg}). Retrying without responseMimeType...")
                         fallback_payload = {"contents": payload.get("contents", [])}
                         try:
-                            retry_resp = requests.post(url, json=fallback_payload, timeout=30)
+                            retry_resp = requests.post(url, json=fallback_payload, timeout=60)
                             if retry_resp.status_code == 200:
                                 cls._cached_model = model
                                 cls._cached_api_version = api_ver
@@ -144,7 +148,7 @@ class AIAnalysisService:
         discovered_models = []
         for api_ver in ('v1beta', 'v1'):
             try:
-                list_resp = requests.get(f"https://generativelanguage.googleapis.com/{api_ver}/models?key={api_key}", timeout=10)
+                list_resp = requests.get(f"https://generativelanguage.googleapis.com/{api_ver}/models?key={api_key}", timeout=15)
                 if list_resp.status_code == 200:
                     models_data = list_resp.json().get('models', [])
                     supported = [
@@ -157,6 +161,8 @@ class AIAnalysisService:
                         filtered = [m for m in supported if not any(k in m for k in excluded_keywords)]
 
                         def model_priority(name: str) -> int:
+                            if name == 'gemini-3.8-flash':
+                                return 0
                             if 'gemini' in name and 'flash' in name:
                                 return 1
                             if 'gemini' in name and 'pro' in name:
@@ -173,7 +179,7 @@ class AIAnalysisService:
                         for discovered_model in sorted_models:
                             retry_url = f"https://generativelanguage.googleapis.com/{api_ver}/models/{discovered_model}:generateContent?key={api_key}"
                             try:
-                                retry_resp = requests.post(retry_url, json=payload, timeout=30)
+                                retry_resp = requests.post(retry_url, json=payload, timeout=60)
                                 if retry_resp.status_code == 200:
                                     cls._cached_model = discovered_model
                                     cls._cached_api_version = api_ver
@@ -186,7 +192,7 @@ class AIAnalysisService:
                                 # If 400 or responseMimeType issue, retry without generationConfig
                                 if retry_resp.status_code == 400:
                                     fallback_payload = {"contents": payload.get("contents", [])}
-                                    retry_resp2 = requests.post(retry_url, json=fallback_payload, timeout=30)
+                                    retry_resp2 = requests.post(retry_url, json=fallback_payload, timeout=60)
                                     if retry_resp2.status_code == 200:
                                         cls._cached_model = discovered_model
                                         cls._cached_api_version = api_ver
@@ -205,6 +211,8 @@ class AIAnalysisService:
                 f"Set AI_MODEL in your environment variables to one of these.",
                 status_code=404
             )
+        elif last_error and "timed out" in last_error.lower():
+            raise AIAnalysisError("Gemini AI request timed out. Please try again later.", status_code=504)
         else:
             raise AIAnalysisError(
                 f"Gemini AI error: {last_error or 'No available Gemini models found for this API key'}. "
