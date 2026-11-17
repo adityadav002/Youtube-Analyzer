@@ -148,3 +148,37 @@ class TestAIAnalysisPipeline(unittest.TestCase):
                 self.assertEqual(data['result']['summary'], "Fallback worked!")
                 self.assertGreaterEqual(mock_post.call_count, 2)
 
+    def test_ai_parse_markdown_json_response(self):
+        # Verify markdown fences (```json ... ```) like Gemma returns do not crash the parser
+        markdown_text = "```json\n{\n  \"summary\": \"Parsed from markdown code fences\",\n  \"topics\": [],\n  \"key_takeaways\": [],\n  \"sentiment\": {\"overall\": \"positive\"}\n}\n```"
+        payload = {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [{"text": markdown_text}]
+                    }
+                }
+            ]
+        }
+        parsed = AIAnalysisService._parse_gemini_json_response(payload, "test_vid")
+        self.assertEqual(parsed['summary'], "Parsed from markdown code fences")
+
+    def test_ai_parse_prose_and_multiple_parts(self):
+        # Verify text with leading thought/explanation and multiple parts extracts the JSON object correctly
+        payload = {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {"text": "Here is the comprehensive analysis you requested:\n\n```json\n"},
+                            {"text": "{\"summary\": \"Multi-part JSON extracted successfully\", \"topics\": [], \"key_takeaways\": [], \"sentiment\": {\"overall\": \"neutral\"}}"},
+                            {"text": "\n```\nHope this is useful!"}
+                        ]
+                    }
+                }
+            ]
+        }
+        parsed = AIAnalysisService._parse_gemini_json_response(payload, "test_vid")
+        self.assertEqual(parsed['summary'], "Multi-part JSON extracted successfully")
+
+

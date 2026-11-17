@@ -23,6 +23,7 @@ class SafeYoutubeDL(YoutubeDL):
             return super().extract_info(*args, **kwargs)
         except (DownloadError, PermissionError, OSError) as de:
             err_msg = str(de)
+            err_lower = err_msg.lower()
             cookie_error_terms = [
                 "cookie",
                 "dpapi",
@@ -31,12 +32,26 @@ class SafeYoutubeDL(YoutubeDL):
                 "failed to load cookies",
                 "permission denied"
             ]
-            if 'cookiesfrombrowser' in self.params and any(term in err_msg.lower() for term in cookie_error_terms):
+            if 'cookiesfrombrowser' in self.params and any(term in err_lower for term in cookie_error_terms):
                 logger.warning(f"[SafeYoutubeDL] Cookie loading or decryption failed: {err_msg}. Retrying without browser cookies.")
                 self.params.pop('cookiesfrombrowser', None)
                 
                 # Instantiate a new SafeYoutubeDL without browser cookies to execute the retry safely
                 with SafeYoutubeDL(self.params) as ydl:
+                    return ydl.extract_info(*args, **kwargs)
+            elif 'cookiefile' in self.params and any(term in err_lower for term in [
+                "failed to extract any player response",
+                "invalid cookie",
+                "expired cookie"
+            ]):
+                logger.warning(f"[SafeYoutubeDL] Extraction failed with cookiefile ({err_msg}). Retrying without cookiefile fallback.")
+                retry_params = dict(self.params)
+                retry_params.pop('cookiefile', None)
+                if 'extractor_args' in retry_params and 'youtube' in retry_params['extractor_args']:
+                    retry_params['extractor_args'] = dict(retry_params['extractor_args'])
+                    retry_params['extractor_args']['youtube'] = dict(retry_params['extractor_args']['youtube'])
+                    retry_params['extractor_args']['youtube'].pop('player_client', None)
+                with SafeYoutubeDL(retry_params) as ydl:
                     return ydl.extract_info(*args, **kwargs)
             else:
                 raise
@@ -148,12 +163,11 @@ def configure_ytdlp_options(ydl_opts: dict, settings=None) -> dict:
     elif has_cookies:
         # Android and iOS do NOT support cookies in yt-dlp (yt-dlp skips them when cookies are provided).
         # When cookies are configured, use yt-dlp's authenticated default clients ('tv_downgraded', 'web_safari')
-        # plus 'web' so player response extraction succeeds.
         if client_name and client_name not in ('android', 'ios', 'default'):
-            ydl_opts['extractor_args']['youtube']['player_client'] = [client_name, 'default', 'web']
+            ydl_opts['extractor_args']['youtube']['player_client'] = [client_name, 'default', 'web_safari']
         else:
-            ydl_opts['extractor_args']['youtube']['player_client'] = ['default', 'web']
-        logger.info("[YtdlpConfig] Cookies configured: using authenticated player clients ['default', 'web']")
+            ydl_opts['extractor_args']['youtube']['player_client'] = ['default', 'web_safari']
+        logger.info("[YtdlpConfig] Cookies configured: using authenticated player clients ['default', 'web_safari']")
     else:
         chosen_client = client_name if client_name and client_name not in ('ios', 'default') else 'android'
         ydl_opts['extractor_args']['youtube']['player_client'] = [chosen_client]

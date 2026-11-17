@@ -77,5 +77,20 @@ class TestYtdlpConfigAndFallback(unittest.TestCase):
         self.assertIn('default', clients)
         self.assertNotIn('android', clients)
 
+    def test_safe_ytdlp_retries_on_stale_cookiefile(self):
+        from yt_dlp.utils import DownloadError
+        params = {'cookiefile': '/tmp/test_stale_cookies.txt'}
+        safe_ydl = SafeYoutubeDL(params)
+
+        with patch('app.extraction.ytdlp_client.YoutubeDL.extract_info') as mock_super_extract:
+            mock_super_extract.side_effect = [
+                DownloadError("ERROR: [youtube] 12345: Failed to extract any player response"),
+                {'id': 'test_video_2', 'title': 'Retry Success'}
+            ]
+            res = safe_ydl.extract_info('https://youtube.com/watch?v=12345678901', download=False)
+            self.assertEqual(res['id'], 'test_video_2')
+            self.assertEqual(mock_super_extract.call_count, 2)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import re
 import requests
 from typing import Optional, Dict, Any
 
@@ -58,25 +59,27 @@ class AIAnalysisService:
     def _execute_gemini_request(cls, api_key: str, payload: dict, video_id: str) -> dict:
         """
         Executes generateContent against Gemini API with automatic model & version fallback.
-        If the primary model returns 404 ("not found for API version ..."), it queries ListModels
-        to discover the active models supported by the API key, and transparently retries.
+        If the primary model returns 404 ("not found for API version ..."), it tries fallbacks
+        and queries ListModels to discover the active models supported by the API key.
         """
+        default_candidates = [
+            'gemini-2.5-flash',
+            'gemini-flash-latest',
+            'gemini-2.0-flash',
+            'gemini-2.5-flash-lite',
+            'gemini-flash-lite-latest',
+            'gemini-2.5-pro',
+            'gemini-pro-latest',
+            'gemini-1.5-flash',
+            'gemini-1.5-pro'
+        ]
+
         env_model = os.environ.get('AI_MODEL')
         if env_model:
-            candidates = [env_model]
+            candidates = [env_model] + [c for c in default_candidates if c != env_model]
         else:
-            candidates = [
-                cls._cached_model or 'gemini-2.5-flash',
-                'gemini-2.0-flash',
-                'gemini-1.5-flash',
-                'gemini-1.5-flash-latest',
-                'gemini-1.5-flash-001',
-                'gemini-1.5-flash-002',
-                'gemini-2.5-pro',
-                'gemini-1.5-pro'
-            ]
-            seen = set()
-            candidates = [c for c in candidates if not (c in seen or seen.add(c))]
+            candidates = [cls._cached_model] if cls._cached_model else []
+            candidates.extend([c for c in default_candidates if c not in candidates])
 
         api_versions = ['v1beta', 'v1']
         last_error = None
@@ -118,6 +121,20 @@ class AIAnalysisService:
                     if "not supported for generatecontent" in err_msg.lower():
                         last_error = err_msg
                         continue
+                    # Check if responseMimeType is rejected, retry without it
+                    if "responsemimetype" in err_msg.lower() or "generationconfig" in err_msg.lower():
+                        logger.warning(f"[AIAnalysisService] Model '{model}' failed with generationConfig ({err_msg}). Retrying without responseMimeType...")
+                        fallback_payload = {"contents": payload.get("contents", [])}
+                        try:
+                            retry_resp = requests.post(url, json=fallback_payload, timeout=30)
+                            if retry_resp.status_code == 200:
+                                cls._cached_model = model
+                                cls._cached_api_version = api_ver
+                                logger.info(f"[AIAnalysisService] Successfully used model '{model}' without responseMimeType on '{api_ver}'")
+                                return retry_resp.json()
+                        except Exception as retry_err:
+                            logger.warning(f"[AIAnalysisService] Fallback request without responseMimeType failed: {retry_err}")
+
                     raise AIAnalysisError(f"Invalid Gemini API request: {err_msg}", status_code=400)
 
                 last_error = err_msg
@@ -136,22 +153,55 @@ class AIAnalysisService:
                         if 'generateContent' in m.get('supportedGenerationMethods', [])
                     ]
                     if supported:
-                        logger.info(f"[AIAnalysisService] Discovered supported models on {api_ver}: {supported}")
-                        for discovered_model in supported:
+                        excluded_keywords = ['-tts', '-image', '-customtools', 'lyria-', 'nano-', 'robotics', 'transcribe']
+                        filtered = [m for m in supported if not any(k in m for k in excluded_keywords)]
+
+                        def model_priority(name: str) -> int:
+                            if 'gemini' in name and 'flash' in name:
+                                return 1
+                            if 'gemini' in name and 'pro' in name:
+                                return 2
+                            if 'gemini' in name:
+                                return 3
+                            if 'gemma' in name:
+                                return 4
+                            return 5
+
+                        sorted_models = sorted(filtered or supported, key=model_priority)
+                        logger.info(f"[AIAnalysisService] Prioritized models on {api_ver}: {sorted_models}")
+
+                        for discovered_model in sorted_models:
                             retry_url = f"https://generativelanguage.googleapis.com/{api_ver}/models/{discovered_model}:generateContent?key={api_key}"
-                            retry_resp = requests.post(retry_url, json=payload, timeout=30)
-                            if retry_resp.status_code == 200:
-                                cls._cached_model = discovered_model
-                                cls._cached_api_version = api_ver
-                                logger.info(f"[AIAnalysisService] Auto-discovery succeeded with model '{discovered_model}' on '{api_ver}'")
-                                return retry_resp.json()
-                        discovered_models.extend(supported)
+                            try:
+                                retry_resp = requests.post(retry_url, json=payload, timeout=30)
+                                if retry_resp.status_code == 200:
+                                    cls._cached_model = discovered_model
+                                    cls._cached_api_version = api_ver
+                                    logger.info(f"[AIAnalysisService] Auto-discovery succeeded with model '{discovered_model}' on '{api_ver}'")
+                                    return retry_resp.json()
+
+                                logger.warning(
+                                    f"[AIAnalysisService] Auto-discovery candidate '{discovered_model}' on {api_ver} failed: status {retry_resp.status_code}, error: {retry_resp.text[:200]}"
+                                )
+                                # If 400 or responseMimeType issue, retry without generationConfig
+                                if retry_resp.status_code == 400:
+                                    fallback_payload = {"contents": payload.get("contents", [])}
+                                    retry_resp2 = requests.post(retry_url, json=fallback_payload, timeout=30)
+                                    if retry_resp2.status_code == 200:
+                                        cls._cached_model = discovered_model
+                                        cls._cached_api_version = api_ver
+                                        logger.info(f"[AIAnalysisService] Auto-discovery succeeded without responseMimeType for model '{discovered_model}'")
+                                        return retry_resp2.json()
+                            except Exception as re_err:
+                                logger.warning(f"[AIAnalysisService] Candidate '{discovered_model}' encountered error: {re_err}")
+
+                        discovered_models.extend(sorted_models)
             except Exception as e:
                 logger.warning(f"[AIAnalysisService] Failed querying ListModels on {api_ver}: {e}")
 
         if discovered_models:
             raise AIAnalysisError(
-                f"Configured model failed. Available models for your API key: {', '.join(discovered_models)}. "
+                f"Configured model failed. Available models for your API key: {', '.join(discovered_models[:10])}. "
                 f"Set AI_MODEL in your environment variables to one of these.",
                 status_code=404
             )
@@ -161,6 +211,47 @@ class AIAnalysisService:
                 "Please verify your GEMINI_API_KEY has the Generative Language API enabled in Google AI Studio / Google Cloud.",
                 status_code=404
             )
+
+    @staticmethod
+    def _parse_gemini_json_response(data: dict, video_id: str) -> dict:
+        """
+        Safely extracts and parses JSON from Gemini/Gemma responses,
+        stripping markdown code fences (```json ... ```) or extracting
+        outermost JSON blocks via regex.
+        """
+        candidates = data.get('candidates', [])
+        if not candidates:
+            raise AIAnalysisError("No candidates returned from Gemini API.", status_code=502)
+
+        parts = candidates[0].get('content', {}).get('parts', [])
+        text_parts = [p.get('text', '') for p in parts if isinstance(p, dict) and p.get('text')]
+        raw_text = "\n".join(text_parts).strip()
+
+        if not raw_text:
+            raise AIAnalysisError("Empty response text received from Gemini API.", status_code=502)
+
+        cleaned = raw_text.strip()
+        # Strip markdown fences if present
+        if cleaned.startswith("```json"):
+            cleaned = cleaned[7:]
+        elif cleaned.startswith("```"):
+            cleaned = cleaned[3:]
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3]
+        cleaned = cleaned.strip()
+
+        try:
+            return json.loads(cleaned)
+        except Exception:
+            # Fallback: extract JSON object via regex
+            match = re.search(r'\{[\s\S]*\}', raw_text)
+            if match:
+                try:
+                    return json.loads(match.group(0))
+                except Exception as sub_err:
+                    logger.error(f"Regex JSON parse failed for video {video_id}: {sub_err}. Raw text: {raw_text[:300]}")
+            logger.error(f"Failed to parse Gemini response for video {video_id}. Raw text: {raw_text[:300]}")
+            raise AIAnalysisError("Failed to parse AI analysis response from Gemini.", status_code=502)
 
     @staticmethod
     def analyze_video(video_id: str, analysis_type: str = 'full') -> Dict[str, Any]:
@@ -235,16 +326,7 @@ class AIAnalysisService:
         }
 
         data = AIAnalysisService._execute_gemini_request(api_key, payload, video_id)
-
-        try:
-            candidates = data.get('candidates', [])
-            if not candidates:
-                raise ValueError("No candidates returned from Gemini.")
-            text_response = candidates[0].get('content', {}).get('parts', [{}])[0].get('text', '{}')
-            result_json = json.loads(text_response)
-        except Exception as pe:
-            logger.error(f"Failed to parse Gemini response for video {video_id}: {pe}")
-            raise AIAnalysisError("Failed to parse AI analysis response from Gemini.", status_code=502) from pe
+        result_json = AIAnalysisService._parse_gemini_json_response(data, video_id)
 
         # 4. Save to database
         record = db.session.query(AIAnalysis).filter(
