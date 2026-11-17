@@ -11,7 +11,7 @@ def ai_status():
     return jsonify({
         'enabled': AIAnalysisService.is_enabled(),
         'provider': 'gemini',
-        'model': 'gemini-1.5-flash'
+        'model': AIAnalysisService.get_model_name()
     })
 
 @ai_bp.route('/analysis/<video_id>', methods=['GET'])

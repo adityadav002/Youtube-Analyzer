@@ -111,3 +111,40 @@ class TestAIAnalysisPipeline(unittest.TestCase):
                 get_data = get_res.get_json()
                 self.assertEqual(get_data['result']['summary'], "This video covers core principles of machine learning.")
 
+    def test_ai_analyze_cascades_on_404_model_not_found(self):
+        v = Video(id="vid_ai_03", title="Fallback Test", channel_id="UC123")
+        db.session.add(v)
+        db.session.commit()
+
+        # Reset cached model
+        AIAnalysisService._cached_model = None
+
+        # Simulate first model returning 404, second model succeeding
+        resp_404 = MagicMock()
+        resp_404.status_code = 404
+        resp_404.json.return_value = {
+            'error': {'message': 'models/gemini-1.5-flash is not found for API version v1beta'}
+        }
+
+        resp_200 = MagicMock()
+        resp_200.status_code = 200
+        resp_200.json.return_value = {
+            "candidates": [
+                {
+                    "content": {
+                        "parts": [
+                            {"text": json.dumps({"summary": "Fallback worked!", "topics": [], "key_takeaways": [], "sentiment": {"overall": "neutral"}})}
+                        ]
+                    }
+                }
+            ]
+        }
+
+        with patch.dict(os.environ, {'GEMINI_API_KEY': 'test_gemini_key'}):
+            with patch('requests.post', side_effect=[resp_404, resp_200]) as mock_post:
+                res = self.client.post('/api/ai/analyze/vid_ai_03')
+                self.assertEqual(res.status_code, 200)
+                data = res.get_json()
+                self.assertEqual(data['result']['summary'], "Fallback worked!")
+                self.assertGreaterEqual(mock_post.call_count, 2)
+

@@ -62,7 +62,7 @@ class Config:
     SEARCH_CACHE_TTL_HOURS = int(os.environ.get('SEARCH_CACHE_TTL_HOURS', '24'))
     AI_PROVIDER = os.environ.get('AI_PROVIDER', 'gemini')
     GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY') or os.environ.get('AI_API_KEY')
-    AI_MODEL = os.environ.get('AI_MODEL', 'gemini-1.5-flash')
+    AI_MODEL = os.environ.get('AI_MODEL', 'gemini-2.5-flash')
 
 class DevelopmentConfig(Config):
     DEBUG = True
